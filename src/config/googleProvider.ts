@@ -8,26 +8,36 @@ import {
 } from "@langchain/google-genai";
 import { traceable } from "langsmith/traceable";
 
-const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
-
-if (!GOOGLE_API_KEY) {
-  throw new Error("GOOGLE_API_KEY environment variable is not set.");
+function getEnvVar(name: string): string {
+  
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} environment variable is not set.`);
+  }
+  return value;
 }
+
+const GOOGLE_API_KEY = getEnvVar("GOOGLE_API_KEY");
 
 const llm = new ChatGoogleGenerativeAI({
   model: "gemini-2.5-pro",
   temperature: 0,
+  maxRetries: 2,
+  maxOutputTokens: 64000,
+  streaming: true,
+  cache: true,
   apiKey: GOOGLE_API_KEY,
 });
 
 const model = traceable(
   // Accept a single argument and pass it to llm.invoke
-  (input: any) => llm.invoke(input),
-  { name: "ChatGoogle" }
+  (input: { content: string }) => llm.invoke([{ role: "user", content: input.content }]),
+  { name: "ChatGoogle", tags: ["llm", "google", "agent", "chat"], metadata: { model: "gemini-2.5-pro", prompt: "gemini-2.5-pro", } }
 );
 
 const embeddingModel = new GoogleGenerativeAIEmbeddings({
   apiKey: GOOGLE_API_KEY,
+  modelName: "gemini-embedding-exp-03-07",
 });
 
 // Wrap the embedQuery and embedDocuments methods with traceable
