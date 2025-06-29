@@ -11,6 +11,7 @@ import {
   AsyncCaller,
   AsyncCallerParams,
 } from "@langchain/core/utils/async_caller";
+import { getMongoCollection, createVectorIndex } from "./storage.js";
 
 /**
  * Type that defines the arguments required to initialize the

@@ -10,10 +10,13 @@ import {
   mapChatMessagesToStoredMessages,
   mapStoredMessagesToChatMessages,
 } from "@langchain/core/messages";
+import { getMongoCollection } from "./storage.js";
+
 
 export interface MongoDBChatMessageHistoryInput {
-  collection: Collection<MongoDBDocument>;
   sessionId: string;
+  dbName?: string;
+  collectionName?: string;
 }
 
 /**
@@ -30,20 +33,37 @@ export interface MongoDBChatMessageHistoryInput {
 export class MongoDBChatMessageHistory extends BaseListChatMessageHistory {
   lc_namespace = ["langchain", "stores", "message", "mongodb"];
 
-  private collection: Collection<MongoDBDocument>;
+  private collection: Collection<MongoDBDocument> | null = null;
 
   private sessionId: string;
 
+  private dbName: string;
+
+  private collectionName: string;
+
   private idKey = "sessionId";
 
-  constructor({ collection, sessionId }: MongoDBChatMessageHistoryInput) {
+  constructor({ sessionId, dbName = "langgraph", collectionName = "chat_history" }: MongoDBChatMessageHistoryInput) {
     super();
-    this.collection = collection;
     this.sessionId = sessionId;
+    this.dbName = dbName;
+    this.collectionName = collectionName;
+  }
+
+  private async getCollection(): Promise<Collection<MongoDBDocument>> {
+    if (!this.collection) {
+      try {
+        this.collection = await getMongoCollection(this.dbName, this.collectionName);
+      } catch (error) {
+        throw new Error(`Failed to connect to MongoDB: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+    return this.collection;
   }
 
   async getMessages(): Promise<BaseMessage[]> {
-    const document = await this.collection.findOne({
+    const collection = await this.getCollection();
+    const document = await collection.findOne({
       [this.idKey]: this.sessionId,
     });
     const messages = document?.messages || [];
@@ -51,8 +71,9 @@ export class MongoDBChatMessageHistory extends BaseListChatMessageHistory {
   }
 
   async addMessage(message: BaseMessage): Promise<void> {
+    const collection = await this.getCollection();
     const messages = mapChatMessagesToStoredMessages([message]);
-    await this.collection.updateOne(
+    await collection.updateOne(
       { [this.idKey]: this.sessionId },
       {
         $push: { messages: { $each: messages } } as PushOperator<{
@@ -64,6 +85,7 @@ export class MongoDBChatMessageHistory extends BaseListChatMessageHistory {
   }
 
   async clear(): Promise<void> {
-    await this.collection.deleteOne({ [this.idKey]: this.sessionId });
+    const collection = await this.getCollection();
+    await collection.deleteOne({ [this.idKey]: this.sessionId });
   }
 }

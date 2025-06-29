@@ -1,7 +1,9 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { Octokit } from "octokit";
-import "dotenv/config";
+import logger from "../config/logger.js";
+import { ToolExecutionError } from "../config/errors.js";
+
 
 /**
  * Initializes Octokit with a GitHub Personal Access Token (PAT).
@@ -9,12 +11,12 @@ import "dotenv/config";
  * @returns {Octokit} An authenticated Octokit instance.
  */
 function getOctokitClient(): Octokit {
-  const githubPat = process.env.GITHUB_PAT;
-  if (!githubPat) {
-    throw new Error("GITHUB_PAT environment variable is not set.");
+  const githubToken = process.env.GITHUB_TOKEN;
+  if (!githubToken) {
+    throw new Error("GITHUB_TOKEN environment variable is not set.");
   }
   return new Octokit({
-    auth: githubPat,
+    auth: githubToken,
   });
 }
 
@@ -52,9 +54,14 @@ export const listRepositoriesTool = tool(
       return JSON.stringify(
         repos.map((repo) => ({ name: repo.name, description: repo.description, url: repo.html_url }))
       );
-    } catch (error: any) {
-      console.error("Error listing repositories:", error);
-      return `Error listing repositories: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error listing repositories", { error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to list repositories: ${errorMessage}`,
+        "list_github_repositories",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -97,9 +104,14 @@ export const getFileContentTool = tool(
       } else {
         return "File content not found.";
       }
-    } catch (error: any) {
-      console.error("Error getting file content:", error);
-      return `Error getting file content: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error getting file content", { owner, repo, path, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to get file content: ${errorMessage}`,
+        "get_github_file_content",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -135,9 +147,14 @@ export const createIssueTool = tool(
         body,
       });
       return `Issue created successfully: ${data.html_url}`;
-    } catch (error: any) {
-      console.error("Error creating issue:", error);
-      return `Error creating issue: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error creating issue", { owner, repo, title, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to create issue: ${errorMessage}`,
+        "create_github_issue",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -171,9 +188,14 @@ export const createRepositoryTool = tool(
         private: isPrivate,
       });
       return `Repository created successfully: ${data.html_url}`;
-    } catch (error: any) {
-      console.error("Error creating repository:", error);
-      return `Error creating repository: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error creating repository", { name, description, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to create repository: ${errorMessage}`,
+        "create_github_repository",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -204,9 +226,14 @@ export const deleteRepositoryTool = tool(
         repo,
       });
       return `Repository ${owner}/${repo} deleted successfully.`;
-    } catch (error: any) {
-      console.error("Error deleting repository:", error);
-      return `Error deleting repository: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error deleting repository", { owner, repo, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to delete repository: ${errorMessage}`,
+        "delete_github_repository",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -244,9 +271,14 @@ export const createPullRequestTool = tool(
         body,
       });
       return `Pull request created successfully: ${data.html_url}`;
-    } catch (error: any) {
-      console.error("Error creating pull request:", error);
-      return `Error creating pull request: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error creating pull request", { owner, repo, title, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to create pull request: ${errorMessage}`,
+        "create_pull_request",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -282,9 +314,14 @@ export const mergePullRequestTool = tool(
         pull_number,
       });
       return `Pull request ${pull_number} merged successfully: ${data.sha}`;
-    } catch (error: any) {
-      console.error("Error merging pull request:", error);
-      return `Error merging pull request: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error merging pull request", { owner, repo, pull_number, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to merge pull request: ${errorMessage}`,
+        "merge_pull_request",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -326,9 +363,14 @@ export const listPullRequestsTool = tool(
           base: pr.base.ref,
         }))
       );
-    } catch (error: any) {
-      console.error("Error listing pull requests:", error);
-      return `Error listing pull requests: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error listing pull requests", { owner, repo, state, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to list pull requests: ${errorMessage}`,
+        "list_pull_requests",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -363,9 +405,14 @@ export const addIssueCommentTool = tool(
         body,
       });
       return `Comment added to issue ${issue_number}: ${data.html_url}`;
-    } catch (error: any) {
-      console.error("Error adding issue comment:", error);
-      return `Error adding issue comment: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error adding issue comment", { owner, repo, issue_number, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to add issue comment: ${errorMessage}`,
+        "add_issue_comment",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -406,9 +453,14 @@ export const listIssuesTool = tool(
           url: issue.html_url,
         }))
       );
-    } catch (error: any) {
-      console.error("Error listing issues:", error);
-      return `Error listing issues: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error listing issues", { owner, repo, state, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to list issues: ${errorMessage}`,
+        "list_issues",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -447,9 +499,14 @@ export const updateIssueTool = tool(
         state,
       });
       return `Issue ${issue_number} updated successfully: ${data.html_url}`;
-    } catch (error: any) {
-      console.error("Error updating issue:", error);
-      return `Error updating issue: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error updating issue", { owner, repo, issue_number, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to update issue: ${errorMessage}`,
+        "update_issue",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -492,9 +549,14 @@ export const listCommitsTool = tool(
           date: commit.commit.author?.date,
         }))
       );
-    } catch (error: any) {
-      console.error("Error listing commits:", error);
-      return `Error listing commits: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error listing commits", { owner, repo, sha, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to list commits: ${errorMessage}`,
+        "list_commits",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -535,9 +597,14 @@ export const getFileTreeTool = tool(
           size: item.size,
         }))
       );
-    } catch (error: any) {
-      console.error("Error getting file tree:", error);
-      return `Error getting file tree: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error getting file tree", { owner, repo, tree_sha, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to get file tree: ${errorMessage}`,
+        "get_file_tree",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {

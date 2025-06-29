@@ -1,39 +1,42 @@
 
+import { Annotation } from "@langchain/langgraph";
 import { BaseMessage } from "@langchain/core/messages";
 
 /**
  * Represents the state for a research and reporting workflow.
- * @interface
  */
-export type ResearchState = {
-  /**
-   * The user's initial query for the research.
-   * @type {string}
-   */
+export interface ResearchState {
   query: string;
-  /**
-   * Messages exchanged during the research process.
-   * @type {BaseMessage[]}
-   */
   messages: BaseMessage[];
-  /**
-   * Collected research data (e.g., search results, document content).
-   * @type {string[]}
-   */
   research_data: string[];
-  /**
-   * The summarized research findings.
-   * @type {string}
-   */
   summary: string;
-  /**
-   * The final report generated from the research.
-   * @type {string}
-   */
   report: string;
-  /**
-   * The next step or agent to execute in the workflow.
-   * @type {string}
-   */
   next: string;
-};
+}
+
+export const ResearchAnnotation = Annotation.Root({
+  query: Annotation<string>({
+    reducer: (x, y) => y ?? x,
+    default: () => "",
+  }),
+  messages: Annotation<BaseMessage[]>({
+    reducer: (x, y) => x.concat(y),
+    default: () => [],
+  }),
+  research_data: Annotation<string[]>({
+    reducer: (x, y) => x.concat(y),
+    default: () => [],
+  }),
+  summary: Annotation<string>({
+    reducer: (x, y) => y ?? x,
+    default: () => "",
+  }),
+  report: Annotation<string>({
+    reducer: (x, y) => y ?? x,
+    default: () => "",
+  }),
+  next: Annotation<string>({
+    reducer: (x, y) => y ?? x,
+    default: () => "",
+  }),
+});

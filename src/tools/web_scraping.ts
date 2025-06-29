@@ -3,8 +3,8 @@ import { z } from "zod";
 import * as cheerio from "cheerio";
 import { CheerioCrawler, RequestQueue } from "crawlee";
 import "dotenv/config";
+import logger from "../config/logger.js";
 import { ToolExecutionError } from "../config/errors.js";
-
 /**
  * @module WebScrapingTools
  * @description A collection of tools for web scraping and content extraction.
@@ -19,6 +19,7 @@ import { ToolExecutionError } from "../config/errors.js";
  */
 export const extractTextFromUrlTool = tool(
   async ({ url }) => {
+    logger.info("Extracting text from URL", { url });
     try {
       const response = await fetch(url);
       if (!response.ok) {
@@ -26,10 +27,17 @@ export const extractTextFromUrlTool = tool(
       }
       const html = await response.text();
       const $ = cheerio.load(html);
-      return $("body").text();
-    } catch (error: any) {
-      console.error("Error extracting text from URL:", error);
-      return `Error extracting text from URL: ${error.message}`;
+      const text = $("body").text();
+      logger.info("Text extracted successfully", { url, textLength: text.length });
+      return text;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error extracting text from URL", { url, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to extract text from URL: ${errorMessage}`,
+        "extract_text_from_url",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -56,9 +64,9 @@ export const extractHtmlFromUrlTool = tool(
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       return await response.text();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error extracting HTML from URL:", error);
-      return `Error extracting HTML from URL: ${error.message}`;
+      return `Error extracting HTML from URL: ${error instanceof Error ? error.message : String(error)}`;
     }
   },
   {
@@ -80,16 +88,23 @@ export const extractHtmlFromUrlTool = tool(
  */
 export const extractElementsBySelectorTool = tool(
   async ({ html, selector }) => {
+    logger.info("Extracting elements by selector", { selector, htmlLength: html.length });
     try {
       const $ = cheerio.load(html);
       const elements: string[] = [];
       $(selector).each((_i, elem) => {
         elements.push($(elem).text());
       });
+      logger.info("Elements extracted successfully", { selector, elementCount: elements.length });
       return elements;
-    } catch (error: any) {
-      console.error("Error extracting elements by selector:", error);
-      return `Error extracting elements by selector: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error extracting elements by selector", { selector, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to extract elements by selector: ${errorMessage}`,
+        "extract_elements_by_selector",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -113,6 +128,7 @@ export const extractElementsBySelectorTool = tool(
  */
 export const crawlWebsiteTool = tool(
   async ({ startUrl, maxRequests = 10, maxDepth = 1 }) => {
+    logger.info("Starting website crawl", { startUrl, maxRequests, maxDepth });
     const crawledData: { url: string; text: string }[] = [];
     const requestQueue = await RequestQueue.open();
     await requestQueue.addRequest({ url: startUrl });
@@ -124,7 +140,8 @@ export const crawlWebsiteTool = tool(
       maxConcurrency: 5, // Limit concurrent requests
       async requestHandler({ request, $ }) {
         // Enforce maxDepth manually
-        if ((request as any).depth !== undefined && (request as any).depth > maxDepth) {
+        const requestWithDepth = request as { depth?: number };
+        if (requestWithDepth.depth !== undefined && requestWithDepth.depth > maxDepth) {
           return;
         }
         console.log(`Processing ${request.url}...`);
@@ -138,10 +155,16 @@ export const crawlWebsiteTool = tool(
 
     try {
       await crawler.run();
+      logger.info("Web crawl completed", { startUrl, pagesFound: crawledData.length });
       return JSON.stringify(crawledData);
-    } catch (error: any) {
-      console.error("Error during web crawl:", error);
-      return `Error during web crawl: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error during web crawl", { startUrl, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to crawl web pages: ${errorMessage}`,
+        "crawl_web",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {

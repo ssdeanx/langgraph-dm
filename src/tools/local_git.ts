@@ -3,6 +3,8 @@ import { z } from "zod";
 import git from "isomorphic-git";
 import http from "isomorphic-git/http/node/index.js";
 import { createFsFromVolume, Volume } from "memfs";
+import logger from "../config/logger.js";
+import { ToolExecutionError } from "../config/errors.js";
 
 const vol = new Volume();
 const fs = createFsFromVolume(vol); // Keep 'fs' for synchronous operations like readFileSync
@@ -35,9 +37,14 @@ export const cloneRepositoryTool = tool(
         singleBranch: !!branch,
       });
       return `Repository ${repoUrl} cloned successfully into in-memory file system.`;
-    } catch (error: any) {
-      console.error("Error cloning repository:", error);
-      return `Error cloning repository: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error cloning repository", { repoUrl, branch, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to clone repository: ${errorMessage}`,
+        "clone_repository",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -64,9 +71,14 @@ export const readInMemoryFileTool = tool(
       // memfs readFileSync returns a Buffer, so convert to string
       const content = fs.readFileSync(filePath, "utf-8");
       return content as string;
-    } catch (error: any) {
-      console.error("Error reading in-memory file:", error);
-      return `Error reading in-memory file: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error reading in-memory file", { filePath, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to read in-memory file: ${errorMessage}`,
+        "read_in_memory_file",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -95,9 +107,14 @@ export const listInMemoryFilesTool = tool(
     try {
       const files = await fsPromises.readdir(path) as string[];
       return JSON.stringify(files);
-    } catch (error: any) {
-      console.error("Error listing in-memory files:", error);
-      return `Error listing in-memory files: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error listing in-memory files", { path, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to list in-memory files: ${errorMessage}`,
+        "list_in_memory_files",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -129,9 +146,14 @@ export const getInMemoryFileStatsTool = tool(
         isFile: stats.isFile(),
         // Add more stats as needed
       });
-    } catch (error: any) {
-      console.error("Error getting in-memory file stats:", error);
-      return `Error getting in-memory file stats: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error getting in-memory file stats", { filePath, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to get in-memory file stats: ${errorMessage}`,
+        "get_in_memory_file_stats",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -166,9 +188,14 @@ export const commitInMemoryChangesTool = tool(
         },
       });
       return `Changes committed to in-memory repository: ${sha}`;
-    } catch (error: any) {
-      console.error("Error committing in-memory changes:", error);
-      return `Error committing in-memory changes: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error committing in-memory changes", { message, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to commit in-memory changes: ${errorMessage}`,
+        "commit_in_memory_changes",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -196,9 +223,14 @@ export const getInMemoryLogTool = tool(
         depth,
       });
       return JSON.stringify(log);
-    } catch (error: any) {
-      console.error("Error getting in-memory log:", error);
-      return `Error getting in-memory log: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error getting in-memory log", { depth, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to get in-memory log: ${errorMessage}`,
+        "get_in_memory_log",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -231,9 +263,14 @@ export const checkoutInMemoryBranchTool = tool(
         ref: branchName,
       });
       return `Checked out branch: ${branchName}.`;
-    } catch (error: any) {
-      console.error("Error checking out in-memory branch:", error);
-      return `Error checking out in-memory branch: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error checking out in-memory branch", { branchName, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to checkout in-memory branch: ${errorMessage}`,
+        "checkout_in_memory_branch",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -262,9 +299,14 @@ export const createInMemoryBranchTool = tool(
         ref: branchName,
       });
       return `Created new branch: ${branchName}.`;
-    } catch (error: any) {
-      console.error("Error creating in-memory branch:", error);
-      return `Error creating in-memory branch: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error creating in-memory branch", { branchName, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to create in-memory branch: ${errorMessage}`,
+        "create_in_memory_branch",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -309,9 +351,14 @@ export const diffInMemoryFilesTool = tool(
       }
 
       return diff + diffContent;
-    } catch (error: any) {
-      console.error("Error diffing in-memory files:", error);
-      return `Error diffing in-memory files: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error diffing in-memory files", { filePath1, filePath2, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to diff in-memory files: ${errorMessage}`,
+        "diff_in_memory_files",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {

@@ -16,11 +16,13 @@ const GOOGLE_API_KEY = getEnvVar("GOOGLE_API_KEY");
 
 
 
+const vertexModelInstance = new ChatVertexAI({
+  model: "gemini-2.5-pro", // Using a model compatible with Vertex AI
+  temperature: 0,
+});
+
 const vertexModel = traceable(
-  new ChatVertexAI({
-    model: "gemini-2.5-pro", // Using a model compatible with Vertex AI
-    temperature: 0,
-  }),
+  (input: { content: string }) => vertexModelInstance.invoke([{ role: "user", content: input.content }]),
   { name: "ChatVertexAI" }
 );
 

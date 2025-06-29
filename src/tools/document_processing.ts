@@ -5,6 +5,8 @@ import * as pdfParse from "pdf-parse";
 import * as mammoth from "mammoth";
 import * as papaparse from "papaparse";
 import { parseStringPromise } from "xml2js";
+import logger from "../config/logger.js";
+import { ToolExecutionError } from "../config/errors.js";
 
 /**
  * @module DocumentProcessingTools
@@ -20,13 +22,20 @@ import { parseStringPromise } from "xml2js";
  */
 export const parsePdfTool = tool(
   async ({ filePath }) => {
+    logger.info("Parsing PDF file", { filePath });
     try {
       const dataBuffer = await fs.readFile(filePath);
       const data = await pdfParse.default(dataBuffer);
+      logger.info("PDF parsed successfully", { filePath, textLength: data.text.length });
       return data.text;
-    } catch (error: any) {
-      console.error("Error parsing PDF:", error);
-      return `Error parsing PDF: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error parsing PDF", { filePath, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to parse PDF: ${errorMessage}`,
+        "parse_pdf",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -47,12 +56,19 @@ export const parsePdfTool = tool(
  */
 export const convertDocxToTextTool = tool(
   async ({ filePath }) => {
+    logger.info("Converting DOCX to text", { filePath });
     try {
       const result = await mammoth.extractRawText({ path: filePath });
+      logger.info("DOCX converted successfully", { filePath, textLength: result.value.length });
       return result.value;
-    } catch (error: any) {
-      console.error("Error converting DOCX to text:", error);
-      return `Error converting DOCX to text: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error converting DOCX to text", { filePath, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to convert DOCX: ${errorMessage}`,
+        "convert_docx_to_text",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -76,6 +92,7 @@ export const convertDocxToTextTool = tool(
  */
 export const parseCsvTool = tool(
   async ({ filePath, delimiter, skipEmptyLines = false, dynamicTyping = false }) => {
+    logger.info("Parsing CSV file", { filePath, delimiter, skipEmptyLines, dynamicTyping });
     try {
       const fileContent = await fs.readFile(filePath, "utf-8");
       const result = papaparse.parse(fileContent, {
@@ -87,10 +104,16 @@ export const parseCsvTool = tool(
       if (result.errors.length > 0) {
         throw new Error(`CSV parsing errors: ${JSON.stringify(result.errors)}`);
       }
+      logger.info("CSV parsed successfully", { filePath, rowCount: result.data.length });
       return JSON.stringify(result.data);
-    } catch (error: any) {
-      console.error("Error parsing CSV:", error);
-      return `Error parsing CSV: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error parsing CSV", { filePath, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to parse CSV: ${errorMessage}`,
+        "parse_csv",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -117,6 +140,7 @@ export const parseCsvTool = tool(
  */
 export const parseXmlTool = tool(
   async ({ filePath, attrkey = '$', charkey = '#', explicitArray = false }) => {
+    logger.info("Parsing XML file", { filePath, attrkey, charkey, explicitArray });
     try {
       const fileContent = await fs.readFile(filePath, "utf-8");
       const result = await parseStringPromise(fileContent, {
@@ -124,10 +148,16 @@ export const parseXmlTool = tool(
         charkey,
         explicitArray,
       });
+      logger.info("XML parsed successfully", { filePath });
       return JSON.stringify(result);
-    } catch (error: any) {
-      console.error("Error parsing XML:", error);
-      return `Error parsing XML: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error parsing XML", { filePath, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to parse XML: ${errorMessage}`,
+        "parse_xml",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -151,12 +181,19 @@ export const parseXmlTool = tool(
  */
 export const extractTextFromFileTool = tool(
   async ({ filePath }) => {
+    logger.info("Extracting text from file", { filePath });
     try {
       const fileContent = await fs.readFile(filePath, "utf-8");
+      logger.info("Text extracted successfully", { filePath, contentLength: fileContent.length });
       return fileContent;
-    } catch (error: any) {
-      console.error("Error extracting text from file:", error);
-      return `Error extracting text from file: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error extracting text from file", { filePath, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to extract text from file: ${errorMessage}`,
+        "extract_text_from_file",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {

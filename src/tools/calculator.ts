@@ -1,6 +1,8 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import * as math from "mathjs";
+import logger from "../config/logger.js";
+import { ToolExecutionError } from "../config/errors.js";
 
 /**
  * @module CalculatorTools
@@ -9,18 +11,22 @@ import * as math from "mathjs";
 
 /**
  * Evaluates a mathematical expression.
- * @function
- * @param {object} input - The input object.
- * @param {string} input.expression - The mathematical expression to evaluate.
- * @returns {Promise<number | string>} The result of the expression or an error message.
  */
 export const evaluateExpressionTool = tool(
-  (input) => {
+  async (input) => {
+    logger.info("Evaluating mathematical expression", { expression: input.expression });
     try {
       const result = math.evaluate(input.expression);
-      return Promise.resolve(String(result));
-    } catch (error: any) {
-      return Promise.resolve(`Error evaluating expression: ${error.message}`);
+      logger.info("Expression evaluated successfully", { expression: input.expression, result });
+      return String(result);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error evaluating expression", { expression: input.expression, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to evaluate expression: ${errorMessage}`,
+        "evaluate_expression",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -41,12 +47,20 @@ export const evaluateExpressionTool = tool(
  * @returns {Promise<number | string>} The sum or an error message.
  */
 export const addNumbersTool = tool(
-  (input) => {
+  async (input) => {
+    logger.info("Adding numbers", { a: input.a, b: input.b });
     try {
       const result = math.add(input.a, input.b);
-      return Promise.resolve(String(result));
-    } catch (error: any) {
-      return Promise.resolve(`Error adding numbers: ${error.message}`);
+      logger.info("Numbers added successfully", { a: input.a, b: input.b, result });
+      return String(result);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error adding numbers", { a: input.a, b: input.b, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to add numbers: ${errorMessage}`,
+        "add_numbers",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -72,8 +86,9 @@ export const subtractNumbersTool = tool(
     try {
       const result = math.subtract(input.a, input.b);
       return Promise.resolve(String(result));
-    } catch (error: any) {
-      return Promise.resolve(`Error subtracting numbers: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return Promise.resolve(`Error subtracting numbers: ${errorMessage}`);
     }
   },
   {
@@ -99,8 +114,9 @@ export const multiplyNumbersTool = tool(
     try {
       const result = math.multiply(input.a, input.b);
       return Promise.resolve(String(result));
-    } catch (error: any) {
-      return Promise.resolve(`Error multiplying numbers: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return Promise.resolve(`Error multiplying numbers: ${errorMessage}`);
     }
   },
   {
@@ -129,8 +145,9 @@ export const divideNumbersTool = tool(
       }
       const result = math.divide(input.a, input.b);
       return Promise.resolve(String(result));
-    } catch (error: any) {
-      return Promise.resolve(`Error dividing numbers: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return Promise.resolve(`Error dividing numbers: ${errorMessage}`);
     }
   },
   {
@@ -156,8 +173,9 @@ export const powerTool = tool(
     try {
       const result = math.pow(input.base, input.exponent);
       return Promise.resolve(String(result));
-    } catch (error: any) {
-      return Promise.resolve(`Error calculating power: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return Promise.resolve(`Error calculating power: ${errorMessage}`);
     }
   },
   {
@@ -182,8 +200,9 @@ export const sqrtTool = tool(
     try {
       const result = math.sqrt(input.value);
       return Promise.resolve(String(result));
-    } catch (error: any) {
-      return Promise.resolve(`Error calculating square root: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return Promise.resolve(`Error calculating square root: ${errorMessage}`);
     }
   },
   {
@@ -207,8 +226,9 @@ export const sinTool = tool(
     try {
       const result = math.sin(input.angle);
       return Promise.resolve(String(result));
-    } catch (error: any) {
-      return Promise.resolve(`Error calculating sine: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return Promise.resolve(`Error calculating sine: ${errorMessage}`);
     }
   },
   {
@@ -232,8 +252,9 @@ export const cosTool = tool(
     try {
       const result = math.cos(input.angle);
       return Promise.resolve(String(result));
-    } catch (error: any) {
-      return Promise.resolve(`Error calculating cosine: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return Promise.resolve(`Error calculating cosine: ${errorMessage}`);
     }
   },
   {
@@ -257,8 +278,9 @@ export const tanTool = tool(
     try {
       const result = math.tan(input.angle);
       return Promise.resolve(String(result));
-    } catch (error: any) {
-      return Promise.resolve(`Error calculating tangent: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return Promise.resolve(`Error calculating tangent: ${errorMessage}`);
     }
   },
   {
@@ -282,8 +304,9 @@ export const logTool = tool(
     try {
       const result = math.log(input.value);
       return Promise.resolve(String(result));
-    } catch (error: any) {
-      return Promise.resolve(`Error calculating natural logarithm: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return Promise.resolve(`Error calculating natural logarithm: ${errorMessage}`);
     }
   },
   {
@@ -307,8 +330,9 @@ export const absTool = tool(
     try {
       const result = math.abs(input.value);
       return Promise.resolve(String(result));
-    } catch (error: any) {
-      return Promise.resolve(`Error calculating absolute value: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return Promise.resolve(`Error calculating absolute value: ${errorMessage}`);
     }
   },
   {
@@ -332,8 +356,9 @@ export const roundTool = tool(
     try {
       const result = math.round(input.value);
       return Promise.resolve(String(result));
-    } catch (error: any) {
-      return Promise.resolve(`Error rounding number: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return Promise.resolve(`Error rounding number: ${errorMessage}`);
     }
   },
   {
@@ -357,8 +382,9 @@ export const floorTool = tool(
     try {
       const result = math.floor(input.value);
       return Promise.resolve(String(result));
-    } catch (error: any) {
-      return Promise.resolve(`Error flooring number: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return Promise.resolve(`Error flooring number: ${errorMessage}`);
     }
   },
   {
@@ -382,8 +408,9 @@ export const ceilTool = tool(
     try {
       const result = math.ceil(input.value);
       return Promise.resolve(String(result));
-    } catch (error: any) {
-      return Promise.resolve(`Error ceiling number: ${error.message}`);
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return Promise.resolve(`Error ceiling number: ${errorMessage}`);
     }
   },
   {

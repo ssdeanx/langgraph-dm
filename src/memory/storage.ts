@@ -1,5 +1,64 @@
 import { BaseStore } from "@langchain/core/stores";
-import { Collection, Document as MongoDocument } from "mongodb";
+import { Collection, Document as MongoDocument, MongoClient } from "mongodb";
+
+/**
+ * MongoDB connection helper
+ */
+let mongoClient: MongoClient | null = null;
+
+export async function getMongoClient(): Promise<MongoClient> {
+  if (mongoClient) {
+    return mongoClient;
+  }
+  
+  const mongoUri = process.env["MONGODB_ATLAS_URI"];
+  if (!mongoUri) {
+    throw new Error("MONGODB_ATLAS_URI environment variable is not set");
+  }
+
+  mongoClient = new MongoClient(mongoUri);
+  await mongoClient.connect();
+  console.log("MongoDB connected successfully");
+  return mongoClient;
+}
+
+export async function getMongoCollection(dbName = "langgraph", collectionName: string): Promise<Collection<MongoDocument>> {
+  const client = await getMongoClient();
+  return client.db(dbName).collection(collectionName);
+}
+
+/**
+ * Create vector search index for MongoDB Atlas
+ */
+export async function createVectorIndex(
+  dbName = "langgraph",
+  collectionName: string,
+  indexName = "vector_index",
+  embeddingKey = "embedding",
+  dimensions = 1536
+): Promise<void> {
+  const client = await getMongoClient();
+  const collection = client.db(dbName).collection(collectionName);
+  
+  try {
+    await collection.createSearchIndex({
+      name: indexName,
+      definition: {
+        fields: [
+          {
+            type: "vector",
+            path: embeddingKey,
+            numDimensions: dimensions,
+            similarity: "cosine"
+          }
+        ]
+      }
+    });
+    console.log(`Vector index '${indexName}' created successfully for collection '${collectionName}'`);
+  } catch (error) {
+    console.log(`Vector index '${indexName}' might already exist:`, error);
+  }
+}
 
 /**
  * Type definition for the input parameters required to initialize an
@@ -11,7 +70,7 @@ export interface MongoDBStoreInput {
    * The amount of keys to retrieve per batch when yielding keys.
    * @default 1000
    */
-  yieldKeysScanBatchSize?: number;
+   yieldKeysScanBatchSize?: number;
   /**
    * The namespace to use for the keys in the database.
    */
@@ -197,4 +256,50 @@ export class MongoDBStore extends BaseStore<string, Uint8Array> {
       yield document;
     }
   }
+}
+
+/**
+ * Factory function to create MongoDBStore with automatic connection
+ */
+export async function createMongoDBStore(
+  dbName = "langgraph",
+  collectionName = "store",
+  namespace?: string
+): Promise<MongoDBStore> {
+  const collection = await getMongoCollection(dbName, collectionName);
+  return new MongoDBStore({ collection, namespace });
+}
+
+/**
+ * Factory function to create MongoDBChatMessageHistory with automatic connection
+ */
+export async function createChatHistory(
+  sessionId: string,
+  dbName = "langgraph",
+  collectionName = "chat_history"
+): Promise<import("./chat_history.js").MongoDBChatMessageHistory> {
+  const { MongoDBChatMessageHistory } = await import("./chat_history.js");
+  return new MongoDBChatMessageHistory({ sessionId, dbName, collectionName });
+}
+
+/**
+ * Factory function to create MongoDBAtlasVectorSearch with automatic connection
+ * Uses Google embeddings from config
+ */
+export async function createVectorStore(
+  dbName = "langgraph",
+  collectionName = "vectors",
+  indexName = "vector_index"
+): Promise<import("./vectorstores.js").MongoDBAtlasVectorSearch> {
+  const { MongoDBAtlasVectorSearch } = await import("./vectorstores.js");
+  const { embeddings } = await import("../config/googleProvider.js");
+  const collection = await getMongoCollection(dbName, collectionName);
+  
+  // Ensure vector index exists (Google embeddings are 768 dimensions)
+  await createVectorIndex(dbName, collectionName, indexName, "embedding", 768);
+  
+  return new MongoDBAtlasVectorSearch(embeddings, { 
+    collection: collection, 
+    indexName: indexName 
+  });
 }
