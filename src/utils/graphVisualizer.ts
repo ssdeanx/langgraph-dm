@@ -1,11 +1,9 @@
-
-
 import mermaid from 'mermaid';
 import { StateGraph } from '@langchain/langgraph';
 import { promises as fs } from 'fs';
 import { createCanvas, loadImage } from 'canvas';
 
-export async function generateMermaidPng(graph: StateGraph, outputPath: string) {
+export async function generateMermaidPng(graph: StateGraph, outputPath: string): Promise<void> {
   const graphDefinition = graph.getGraph();
   const mermaidGraph = `graph TD\n${graphDefinition.nodes.map(node => `  ${node.id}[${node.id}]`).join('\n')}\n${graphDefinition.edges.map(edge => `  ${edge.source} --> ${edge.target}`).join('\n')}`;
 

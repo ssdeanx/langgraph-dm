@@ -22,15 +22,15 @@ async function safeModelInvoke(content: string): Promise<string> {
 
 // Main chat node - handles user conversation
 async function chatNode(state: typeof AgentAnnotation.State): Promise<Partial<typeof AgentAnnotation.State>> {
-  logger.info("Chat node processing", { 
+  logger.info("Chat node processing", {
     messageCount: state.messages.length,
-    sessionId: state.sessionId 
+    sessionId: state.sessionId
   });
 
   try {
     const lastMessage = state.messages[state.messages.length - 1];
     const userContent = lastMessage?.content as string || state.userInput || "Hello!";
-    
+
     const response = await safeModelInvoke(
       `You are a helpful AI assistant. Please respond to the user's message: "${userContent}"`
     );

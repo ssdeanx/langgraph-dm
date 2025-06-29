@@ -1,8 +1,8 @@
 
 import { model } from "../config/googleProvider.js";
 import { AgentAnnotation, AgentType } from "./state.js";
-import { MongoDBChatMessageHistory } from "../memory/chat_history.js";
-import { MongoDBStore } from "../memory/storage.js";
+import { chatHistory } from "../memory/chat_history.js";
+import { storage } from "../memory/storage.js";
 import logger from "../config/logger.js";
 
 const ALL_AGENT_TYPES: AgentType[] = ["react", "rag", "conversational", "research", "rewoo", "plan_execute", "self_rag", "crag", "collaboration", "research_team", "document_writing_team", "reflection"];
@@ -34,12 +34,6 @@ export async function supervisor(state: typeof AgentAnnotation.State): Promise<P
   logger.info("Supervisor routing request", { 
     messageCount: state.messages.length,
     sessionId: state.sessionId 
-  });
-
-  // Use chat history for context
-  const chatHistory = new MongoDBChatMessageHistory({
-    collection: {} as any, // TODO: Pass actual MongoDB collection
-    sessionId: state.sessionId || "default"
   });
 
   const lastMessage = state.messages[state.messages.length - 1];
