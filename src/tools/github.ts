@@ -1,6 +1,7 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { Octokit } from "octokit";
+import "dotenv/config";
 
 /**
  * Initializes Octokit with a GitHub Personal Access Token (PAT).

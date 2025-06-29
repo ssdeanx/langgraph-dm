@@ -67,7 +67,7 @@ export class MongoDBStore extends BaseStore<string, Uint8Array> {
     this.namespace = fields.namespace;
   }
 
-  _getPrefixedKey(key: string) {
+  _getPrefixedKey(key: string): string {
     if (this.namespace) {
       const delimiter = "/";
       return `${this.namespace}${delimiter}${key}`;
@@ -75,7 +75,7 @@ export class MongoDBStore extends BaseStore<string, Uint8Array> {
     return key;
   }
 
-  _getDeprefixedKey(key: string) {
+  _getDeprefixedKey(key: string): string {
     if (this.namespace) {
       const delimiter = "/";
       return key.slice(this.namespace.length + delimiter.length);
@@ -88,7 +88,7 @@ export class MongoDBStore extends BaseStore<string, Uint8Array> {
    * @param keys Array of keys to be retrieved.
    * @returns An array of retrieved values.
    */
-  async mget(keys: string[]) {
+  async mget(keys: string[]): Promise<(Uint8Array | undefined)[]> {
     const prefixedKeys = keys.map(this._getPrefixedKey.bind(this));
     const retrievedValues = await this.collection
       .find({

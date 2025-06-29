@@ -2,6 +2,8 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import * as cheerio from "cheerio";
 import { CheerioCrawler, RequestQueue } from "crawlee";
+import "dotenv/config";
+import { ToolExecutionError } from "../config/errors.js";
 
 /**
  * @module WebScrapingTools

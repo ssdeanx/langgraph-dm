@@ -92,7 +92,7 @@ export class MongoDBAtlasVectorSearch extends VectorStore {
     vectors: number[][],
     documents: Document[],
     options?: { ids?: string[] }
-  ) {
+  ): Promise<string[]> {
     const docs = vectors.map((embedding, idx) => ({
       [this.textKey]: documents[idx].pageContent,
       [this.embeddingKey]: embedding,
@@ -127,7 +127,7 @@ export class MongoDBAtlasVectorSearch extends VectorStore {
    * @param documents Documents to be added.
    * @returns Promise that resolves when the documents have been added.
    */
-  async addDocuments(documents: Document[], options?: { ids?: string[] }) {
+  async addDocuments(documents: Document[], options?: { ids?: string[] }): Promise<string[]> {
     const texts = documents.map(({ pageContent }) => pageContent);
     return this.addVectors(
       await this.embeddings.embedDocuments(texts),
@@ -330,7 +330,7 @@ export class MongoDBAtlasVectorSearch extends VectorStore {
    * @param array Array of number to be fixed.
    * @returns
    */
-  static fixArrayPrecision(array: number[]) {
+  static fixArrayPrecision(array: number[]): number[] {
     return array.map((value) => {
       if (Number.isInteger(value)) {
         return value + 0.000000000000001;

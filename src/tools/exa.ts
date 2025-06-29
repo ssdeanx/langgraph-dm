@@ -1,6 +1,18 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { ExaSearchResults } from "@langchain/exa";
+import "dotenv/config";
+import { ToolExecutionError } from "../config/errors.js";
+/**
+ * Utility function for environment variable access
+ */
+function getEnvVar(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} environment variable is not set.`);
+  }
+  return value;
+}
 
 /**
  * @module ExaTools
@@ -16,9 +28,10 @@ import { ExaSearchResults } from "@langchain/exa";
  */
 export const exaSearchTool = tool(
   async ({ query }) => {
-    const exa = new ExaSearchResults({
-      apiKey: process.env.EXA_API_KEY,
-    });
+    // Ensure the API key is set
+    getEnvVar("EXA_API_KEY");
+    // Instantiate ExaSearchResults without apiKey argument
+    const exa = new ExaSearchResults();
     try {
       const results = await exa.invoke(query);
       return JSON.stringify(results);
@@ -35,3 +48,4 @@ export const exaSearchTool = tool(
     }),
   }
 );
+

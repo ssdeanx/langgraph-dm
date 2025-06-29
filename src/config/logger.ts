@@ -8,7 +8,7 @@ const logger = createLogger({
     format.splat(),
     format.json()
   ),
-  defaultMeta: { service: 'dm-langgraphjs' },
+  defaultMeta: { service: 'langgraph' },
   transports: [
     new transports.Console({
       format: format.combine(

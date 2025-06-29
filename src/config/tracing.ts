@@ -1,6 +1,6 @@
-oimport "dotenv/config";
+import "dotenv/config";
 
-export function initTracing() {
+export function initTracing(): void {
   if (!process.env.LANGCHAIN_API_KEY) {
     console.warn("LANGCHAIN_API_KEY is not set. LangSmith tracing will be disabled.");
     return;
