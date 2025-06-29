@@ -47,7 +47,7 @@ export default tseslint.config(
       "@typescript-eslint/no-floating-promises": "error",
       "@typescript-eslint/no-misused-promises": "error",
       "@typescript-eslint/no-unused-vars": ["warn", { args: "none" }],
-      "no-process-env": "warn",
+      "no-process-env": "off",
 
       // --- Recommended for LangGraph.js ---
       "no-param-reassign": ["error", { props: true }],
