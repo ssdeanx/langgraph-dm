@@ -93,7 +93,7 @@ const workflow = new StateGraph(AgentAnnotation)
 // Compile the graph
 export const graph = workflow.compile({
   // Add checkpointer for persistence if needed
-  // checkpointer: new MemorySaver(),
+  checkpointer: new MemorySaver(),
 });
 
 // Export helper functions for testing
