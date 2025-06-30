@@ -1,3 +1,20 @@
+import { MongoDBSaver } from "@langchain/langgraph-checkpoint-mongodb";
+/**
+ * Factory function to create a MongoDBSaver for LangGraph checkpointing
+ */
+export async function createCheckpointSaver(
+  dbName = "langgraph",
+  checkpointCollectionName = "langgraph_checkpoints",
+  checkpointWritesCollectionName = "langgraph_checkpoint_writes"
+): Promise<MongoDBSaver> {
+  const client = await getMongoClient();
+  return new MongoDBSaver({
+    client,
+    dbName,
+    checkpointCollectionName,
+    checkpointWritesCollectionName,
+  });
+}
 import { BaseStore } from "@langchain/core/stores";
 import { Collection, Document as MongoDocument, MongoClient } from "mongodb";
 
@@ -10,7 +27,7 @@ export async function getMongoClient(): Promise<MongoClient> {
   if (mongoClient) {
     return mongoClient;
   }
-  
+
   const mongoUri = process.env["MONGODB_ATLAS_URI"];
   if (!mongoUri) {
     throw new Error("MONGODB_ATLAS_URI environment variable is not set");
@@ -285,6 +302,13 @@ export async function createChatHistory(
 /**
  * Factory function to create MongoDBAtlasVectorSearch with automatic connection
  * Uses Google embeddings from config
+ *
+ * @important
+ * Always use this function to instantiate MongoDBAtlasVectorSearch.
+ * Do NOT instantiate MongoDBAtlasVectorSearch directly—this ensures correct setup and index management.
+ * Example:
+ *   import { createVectorStore } from "./storage.js";
+ *   const vectorstore = await createVectorStore();
  */
 export async function createVectorStore(
   dbName = "langgraph",

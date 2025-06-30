@@ -1,3 +1,9 @@
+// IMPORTANT: Do NOT instantiate MongoDBAtlasVectorSearch directly.
+// Always use the createVectorStore factory from storage.ts for correct setup and index management.
+// Example:
+//   import { createVectorStore } from "./storage.js";
+//   const vectorstore = await createVectorStore();
+
 import { type Collection, type Document as MongoDBDocument } from "mongodb";
 import {
   MaxMarginalRelevanceSearchOptions,
@@ -11,7 +17,6 @@ import {
   AsyncCaller,
   AsyncCallerParams,
 } from "@langchain/core/utils/async_caller";
-import { getMongoCollection, createVectorIndex } from "./storage.js";
 
 /**
  * Type that defines the arguments required to initialize the
@@ -69,6 +74,14 @@ export class MongoDBAtlasVectorSearch extends VectorStore {
     return "mongodb_atlas";
   }
 
+  /**
+   * @important
+   * Do NOT instantiate MongoDBAtlasVectorSearch directly.
+   * Always use the createVectorStore factory from storage.ts for correct setup and index management.
+   * Example:
+   *   import { createVectorStore } from "./storage.js";
+   *   const vectorstore = await createVectorStore();
+   */
   constructor(
     embeddings: EmbeddingsInterface,
     args: MongoDBAtlasVectorSearchLibArgs

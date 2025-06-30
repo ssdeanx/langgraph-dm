@@ -5,6 +5,10 @@ import { supervisor } from "./supervisor.js";
 import { AgentAnnotation } from "./state.js";
 import logger from "../config/logger.js";
 import { ModelInvocationError, handleGlobalError } from "../config/errors.js";
+import { researchCollectNode, researchSummarizeNode, researchReportNode } from "./research_agent.js"; // Import research agent for potential routing
+// Import react agent for potential routing
+import { reactAgent } from "./react_agent.js"; // Import react agent for potential routing
+
 
 // Helper function to handle model invocation with error handling
 async function safeModelInvoke(content: string): Promise<string> {
@@ -50,9 +54,9 @@ async function chatNode(state: typeof AgentAnnotation.State): Promise<Partial<ty
 
 // Entry node - processes initial user input
 async function entryNode(state: typeof AgentAnnotation.State): Promise<Partial<typeof AgentAnnotation.State>> {
-  logger.info("Entry node processing", { 
+  logger.info("Entry node processing", {
     userInput: state.userInput,
-    sessionId: state.sessionId 
+    sessionId: state.sessionId
   });
 
   return {
@@ -63,16 +67,31 @@ async function entryNode(state: typeof AgentAnnotation.State): Promise<Partial<t
 
 // Route function - determines next step based on supervisor decision
 function routeMessages(state: typeof AgentAnnotation.State): string {
-  logger.debug("Routing messages", { 
+  logger.debug("Routing messages", {
     next: state.next,
-    messageCount: state.messages.length 
+    messageCount: state.messages.length
   });
 
   // Simple routing logic - for now just go to chat or end
   if (state.next === "FINISH" || state.next === "END") {
     return END;
   }
-  
+  if (state.next === "react") {
+    // If supervisor decision is to route to react agent, we can handle that here
+    return "react";
+  }
+  if (state.next === "research_collect") {
+    // If supervisor decision is to route to research collect agent
+    return "research_collect";
+  }
+  if (state.next === "research_summarize") {
+    // If supervisor decision is to route to research summarize agent
+    return "research_summarize";
+  }
+  if (state.next === "research_report") {
+    // If supervisor decision is to route to research report agent
+    return "research_report";
+  }
   // For now, all agent types route to chat node
   return "chat";
 }
@@ -81,6 +100,13 @@ function routeMessages(state: typeof AgentAnnotation.State): string {
 const workflow = new StateGraph(AgentAnnotation)
   .addNode("entry", entryNode)
   .addNode("supervisor", supervisor)
+  // Add react agent node if needed
+  .addNode("react", reactAgent)
+  // Add research agent node if needed
+  .addNode("research_collect", researchCollectNode)
+  .addNode("research_summarize", researchSummarizeNode)
+  .addNode("research_report", researchReportNode)
+  // Add chat node for general conversation
   .addNode("chat", chatNode)
   .addEdge(START, "entry")
   .addEdge("entry", "supervisor")
