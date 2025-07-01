@@ -16,8 +16,9 @@ function getEnvVar(name: string): string {
 
 const GOOGLE_API_KEY = getEnvVar("GOOGLE_API_KEY");
 
-// LangSmith tracing happens automatically when env vars are set
-// No manual wrapping needed - LangGraph.js handles it
+
+/* This code snippet is exporting an instance of the `ChatGoogleGenerativeAI` class with specific
+configuration options. Here's a breakdown of what each option is doing: */
 export const model = new ChatGoogleGenerativeAI({
   model: "gemini-2.5-pro",
   temperature: 0,
@@ -28,6 +29,9 @@ export const model = new ChatGoogleGenerativeAI({
   apiKey: GOOGLE_API_KEY,
 });
 
+/* The code snippet `export const embeddings = new GoogleGenerativeAIEmbeddings({ apiKey:
+GOOGLE_API_KEY, modelName: "gemini-embedding-exp-03-07" });` is creating a new instance of the
+`GoogleGenerativeAIEmbeddings` class with specific configuration options. */
 export const embeddings = new GoogleGenerativeAIEmbeddings({
   apiKey: GOOGLE_API_KEY,
   modelName: "gemini-embedding-exp-03-07",

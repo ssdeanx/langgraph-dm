@@ -24,7 +24,16 @@ async function safeModelInvoke(content: string): Promise<string> {
   }
 }
 
-// Main chat node - handles user conversation
+/**
+ * The above functions handle the conversation flow in a chatbot, with the chatNode responding as a
+ * helpful AI assistant and the entryNode processing initial user input.
+ * @param state - The `state` parameter in the functions `chatNode` and `entryNode` represents the
+ * current state of the conversation or interaction with the user. It contains information such as the
+ * messages exchanged so far, the user input, and the session ID to track the conversation context.
+ * @returns In the `chatNode` function, a new HumanMessage response is being generated based on the
+ * user's input or a default message if no input is provided. This response is then returned along with
+ * the sender being set as "assistant".
+ */
 async function chatNode(state: typeof AgentAnnotation.State): Promise<Partial<typeof AgentAnnotation.State>> {
   logger.info("Chat node processing", {
     messageCount: state.messages.length,
@@ -65,7 +74,20 @@ async function entryNode(state: typeof AgentAnnotation.State): Promise<Partial<t
   };
 }
 
-// Route function - determines next step based on supervisor decision
+
+/**
+ * The function `routeMessages` determines the next step in a chatbot conversation based on the state
+ * provided.
+ * @param state - The `state` parameter in the `routeMessages` function represents the current state of
+ * the conversation in the chatbot. It contains information such as the next action to take
+ * (`state.next`) and the messages exchanged so far (`state.messages`).
+ * @returns The `routeMessages` function is returning a string value based on the logic provided in the
+ * function. The returned string indicates the next node or agent to route the messages to in the
+ * chatbot conversation workflow. The possible return values are:
+ * - "react" if the next state is "react"
+ * - "research_collect" if the next state is "research_collect"
+ * - "research_summarize"
+ */
 function routeMessages(state: typeof AgentAnnotation.State): string {
   logger.debug("Routing messages", {
     next: state.next,
@@ -96,7 +118,8 @@ function routeMessages(state: typeof AgentAnnotation.State): string {
   return "chat";
 }
 
-// Create the state graph
+/* The code snippet you provided is defining the workflow for a chatbot conversation using a StateGraph
+from the "@langchain/langgraph" library. Here's a breakdown of what the workflow setup is doing: */
 const workflow = new StateGraph(AgentAnnotation)
   .addNode("entry", entryNode)
   .addNode("supervisor", supervisor)

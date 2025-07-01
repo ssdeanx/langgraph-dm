@@ -1,20 +1,27 @@
 import { AIMessage } from "@langchain/core/messages";
 import { model } from "../config/googleProvider.js";
 import { ResearchAnnotation } from "./research_state.js";
-
 import { tools } from "../tools/index.js";
 import { memory } from "../memory/index.js";
 import { createCheckpointSaver } from "../memory/storage.js";
-// Async factory to create the checkpoint saver for persistent memory
-const checkpointSaverPromise = createCheckpointSaver();
-
 import logger from "../config/logger.js";
 import { ToolExecutionError, AgentError } from "../config/errors.js";
 
-/**
- * Research agent that uses web search tools and memory
- */
+// Async factory to create the checkpoint saver for persistent memory
+const checkpointSaverPromise = createCheckpointSaver();
 
+/**
+ * These functions handle the processing, summarizing, and reporting of research data collected from
+ * various tools and sources.
+ * @param state - The `state` parameter in each of the functions represents the current state of the
+ * research process. It contains information such as the query being researched, any collected data,
+ * summaries, reports, and messages related to the research task. The state is used to track the
+ * progress of the research workflow and pass relevant
+ * @returns Each of the three functions `researchCollectNode`, `researchSummarizeNode`, and
+ * `researchReportNode` returns a promise that resolves to a partial state object of type
+ * `ResearchAnnotation.State`. The partial state object contains specific properties based on the
+ * processing done in each function:
+ */
 export async function researchCollectNode(state: typeof ResearchAnnotation.State): Promise<Partial<typeof ResearchAnnotation.State>> {
   logger.info("Research collect node processing", { query: state.query });
 

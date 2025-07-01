@@ -8,6 +8,21 @@ import { AgentError } from "../config/errors.js";
 // Async factory to create the checkpoint saver for persistent memory
 const checkpointSaverPromise = createCheckpointSaver();
 
+
+
+/**
+ * The `supervisor` function determines which agent to call next based on the user's request and
+ * provides a fallback routing logic if needed.
+ * @param state - The `state` parameter in the `supervisor` function represents the current state of
+ * the conversation or interaction with the user. It includes information such as the messages
+ * exchanged, session ID, and user input. The function uses this state to make decisions on which agent
+ * to call next based on the user's
+ * @returns The `supervisor` function returns an object with the key `next` that specifies the next
+ * agent to call based on the user's request. The value of `next` can be one of the following:
+ * - A specific agent type from the `ALL_AGENT_TYPES` array.
+ * - "FINISH" if the task is complete.
+ * - A fallback agent choice based on keywords if the user request does
+ */
 const ALL_AGENT_TYPES: AgentType[] = ["react", "rag", "conversational", "research", "rewoo", "plan_execute", "self_rag", "crag", "collaboration", "research_team", "document_writing_team", "reflection"];
 
 const supervisorPrompt = `You are a supervisor who needs to decide which agent to call next based on the user's request.
