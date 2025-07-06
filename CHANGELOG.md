@@ -1,9 +1,28 @@
 # CHANGELOG
 
-> **Format:**  
-> - Uses Keep a Changelog principles, with AI/agent-specific tags and context.  
-> - Each entry includes: version, date, highlights, agentic/AI features, state/memory changes, and solo dev notes.  
+> **Format:**
+>
+> - Uses Keep a Changelog principles, with AI/agent-specific tags and context.
+> - Each entry includes: version, date, highlights, agentic/AI features, state/memory changes, and solo dev notes.
 > - Semantic versioning (e.g., 0.1.0 for first public dev release).
+
+---
+
+## [0.2.0] - 2025-07-06
+
+### [Fixed]
+
+- Resolved `UnreachableNodeError` by correctly wiring the `react` and `research` agents into the main graph.
+- Addressed a state mismatch by unifying the agent state (`AgentState` and `AgentAnnotation`) to include research-related fields, allowing all agents to operate on a single, consistent state schema.
+- Corrected a routing inconsistency where the supervisor would route to `"research"` instead of the correct starting node, `"research_collect"`.
+
+### [Added]
+
+- Fully integrated the multi-step research agent (`research_collect` -> `research_summarize` -> `research_report`) into the supervisor's routing logic.
+
+### [AI/Agent]
+
+- The supervisor can now correctly delegate tasks to the research agent, which will execute its multi-step process and return the result to the supervisor.
 
 ---
 
@@ -12,21 +31,25 @@
 ### 🚀 Initial Release
 
 #### Highlights
+
 - **LangGraph.js** agent framework with modular, extensible state.
 - **Google Gemini (Generative AI)** integration for advanced LLM responses.
 - **Stateful agent**: tracks messages, user profile, conversation ID, tool results, retrieved docs, step, and errors.
 - **Solo Dev**: Designed for rapid solo iteration, with clear separation of agent logic and state.
 
 #### Agentic/AI Features
+
 - Multi-turn conversation memory.
 - Error tracking and step counter for workflow transparency.
 - Hooks for tool use and document retrieval (RAG-ready).
 - User profile and conversation context fields for future personalization.
 
 #### State/Memory
+
 - StateAnnotation extended for: `userProfile`, `conversationId`, `retrievedDocs`, `step`, `toolResults`, `errors`.
 
 #### Dev Notes
+
 - Follows 2025 best practices: modular, testable, and ready for multi-agent or RAG expansion.
 - Next: Add real tool integrations, retrieval, and advanced routing.
 

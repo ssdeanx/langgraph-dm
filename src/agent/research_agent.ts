@@ -1,8 +1,9 @@
 import { AIMessage } from "@langchain/core/messages";
 import { model } from "../config/googleProvider.js";
-import { ResearchAnnotation } from "./research_state.js";
+import { AgentAnnotation } from "./state.js";
 import { tools } from "../tools/index.js";
 import { memory } from "../memory/index.js";
+import { RunnableConfig } from "@langchain/core/runnables";
 import { createCheckpointSaver } from "../memory/storage.js";
 import logger from "../config/logger.js";
 import { ToolExecutionError, AgentError } from "../config/errors.js";
@@ -22,7 +23,7 @@ const checkpointSaverPromise = createCheckpointSaver();
  * `ResearchAnnotation.State`. The partial state object contains specific properties based on the
  * processing done in each function:
  */
-export async function researchCollectNode(state: typeof ResearchAnnotation.State): Promise<Partial<typeof ResearchAnnotation.State>> {
+export async function researchCollectNode(state: typeof AgentAnnotation.State): Promise<Partial<typeof AgentAnnotation.State>> {
   logger.info("Research collect node processing", { query: state.query });
 
   try {
@@ -90,15 +91,16 @@ export async function researchCollectNode(state: typeof ResearchAnnotation.State
   }
 }
 
-export async function researchSummarizeNode(state: typeof ResearchAnnotation.State): Promise<Partial<typeof ResearchAnnotation.State>> {
+export async function researchSummarizeNode(state: typeof AgentAnnotation.State, config: RunnableConfig): Promise<Partial<typeof AgentAnnotation.State>> {
   logger.info("Research summarize node processing", { dataCount: state.research_data.length });
 
   try {
     const combinedData = state.research_data.join("\n\n");
+    const prompt = config.configurable?.research_prompt ?? `Summarize the following research data for the query: "${state.query}"\n\nData:\n${combinedData}`;
 
     const response = await model.invoke([{
       role: "user",
-      content: `Summarize the following research data for the query: "${state.query}"\n\nData:\n${combinedData}`
+      content: prompt
     }]);
 
     const summary = response.content as string;
@@ -118,13 +120,14 @@ export async function researchSummarizeNode(state: typeof ResearchAnnotation.Sta
   }
 }
 
-export async function researchReportNode(state: typeof ResearchAnnotation.State): Promise<Partial<typeof ResearchAnnotation.State>> {
+export async function researchReportNode(state: typeof AgentAnnotation.State, config: RunnableConfig): Promise<Partial<typeof AgentAnnotation.State>> {
   logger.info("Research report node processing", { query: state.query });
 
   try {
+    const prompt = config.configurable?.research_prompt ?? `Create a comprehensive research report based on the following summary for query: "${state.query}"\n\nSummary:\n${state.summary}\n\nFormat as a structured report with sections.`;
     const response = await model.invoke([{
       role: "user",
-      content: `Create a comprehensive research report based on the following summary for query: "${state.query}"\n\nSummary:\n${state.summary}\n\nFormat as a structured report with sections.`
+      content: prompt
     }]);
 
     const report = response.content as string;
@@ -132,7 +135,7 @@ export async function researchReportNode(state: typeof ResearchAnnotation.State)
     return {
       report,
       messages: [new AIMessage(`Research report completed:\n\n${report}`)],
-      next: "END"
+      next: "supervisor"
     };
   } catch (error) {
     logger.error("Research report error", { error: error instanceof Error ? error.message : 'Unknown error' });

@@ -1,7 +1,6 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import * as fs from "fs/promises";
-import * as pdfParse from "pdf-parse";
 import * as mammoth from "mammoth";
 import * as papaparse from "papaparse";
 import { parseStringPromise } from "xml2js";
@@ -13,39 +12,6 @@ import { ToolExecutionError } from "../config/errors.js";
  * @description A collection of tools for processing various document formats.
  */
 
-/**
- * Parses a PDF file and extracts its text content.
- * @function
- * @param {object} input - The input object.
- * @param {string} input.filePath - The absolute path to the PDF file.
- * @returns {Promise<string>} The extracted text content of the PDF.
- */
-export const parsePdfTool = tool(
-  async ({ filePath }) => {
-    logger.info("Parsing PDF file", { filePath });
-    try {
-      const dataBuffer = await fs.readFile(filePath);
-      const data = await pdfParse.default(dataBuffer);
-      logger.info("PDF parsed successfully", { filePath, textLength: data.text.length });
-      return data.text;
-    } catch (error: unknown) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      logger.error("Error parsing PDF", { filePath, error: errorMessage });
-      throw new ToolExecutionError(
-        `Failed to parse PDF: ${errorMessage}`,
-        "parse_pdf",
-        error instanceof Error ? error : undefined
-      );
-    }
-  },
-  {
-    name: "parse_pdf",
-    description: "Parses a PDF file and extracts its text content.",
-    schema: z.object({
-      filePath: z.string().describe("The absolute path to the PDF file."),
-    }),
-  }
-);
 
 /**
  * Converts a DOCX file to plain text.

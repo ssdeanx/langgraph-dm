@@ -10,6 +10,11 @@ export interface AgentState {
   sender?: string;
   sessionId?: string;
   userInput?: string;
+  query?: string;
+  research_data?: string[];
+  summary?: string;
+  report?: string;
+  documentation?: string;
 }
 
 /* This code snippet is defining an `AgentAnnotation` object using the `Annotation.Root` method. The
@@ -36,6 +41,26 @@ export const AgentAnnotation = Annotation.Root({
     reducer: (x, y) => y ?? x,
     default: () => "",
   }),
+  query: Annotation<string>({
+    reducer: (x, y) => y ?? x,
+    default: () => "",
+  }),
+  research_data: Annotation<string[]>({
+    reducer: (x, y) => (x ?? []).concat(y ?? []),
+    default: () => [],
+  }),
+  summary: Annotation<string>({
+    reducer: (x, y) => y ?? x,
+    default: () => "",
+  }),
+  report: Annotation<string>({
+    reducer: (x, y) => y ?? x,
+    default: () => "",
+  }),
+  documentation: Annotation<string>({
+    reducer: (x, y) => y ?? x,
+    default: () => "",
+  }),
 });
 
 
@@ -51,4 +76,5 @@ export type AgentType =
   | "collaboration"
   | "research_team"
   | "document_writing_team"
-  | "reflection";
+  | "reflection"
+  | "documentation";

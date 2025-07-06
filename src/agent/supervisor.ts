@@ -2,6 +2,7 @@
 import { model } from "../config/googleProvider.js";
 import { AgentAnnotation, AgentType } from "./state.js";
 import { memory } from "../memory/index.js";
+import { RunnableConfig } from "@langchain/core/runnables";
 import { createCheckpointSaver } from "../memory/storage.js";
 import logger from "../config/logger.js";
 import { AgentError } from "../config/errors.js";
@@ -23,7 +24,7 @@ const checkpointSaverPromise = createCheckpointSaver();
  * - "FINISH" if the task is complete.
  * - A fallback agent choice based on keywords if the user request does
  */
-const ALL_AGENT_TYPES: AgentType[] = ["react", "rag", "conversational", "research", "rewoo", "plan_execute", "self_rag", "crag", "collaboration", "research_team", "document_writing_team", "reflection"];
+const ALL_AGENT_TYPES: AgentType[] = ["react", "rag", "conversational", "research", "rewoo", "plan_execute", "self_rag", "crag", "collaboration", "research_team", "document_writing_team", "reflection", "documentation"];
 
 const supervisorPrompt = `You are a supervisor who needs to decide which agent to call next based on the user's request.
 
@@ -31,6 +32,7 @@ Available agents and their capabilities:
 - react: General problem-solving with tools (calculator, web search, GitHub, etc.)
 - rag: Document retrieval and question answering
 - research: Deep research using web search and document analysis
+- documentation: Create documentation from research reports
 - conversational: General chat and conversation
 - plan_execute: Complex multi-step task planning and execution
 - collaboration: Multi-agent coordination tasks
@@ -38,17 +40,18 @@ Available agents and their capabilities:
 Rules:
 1. If user asks about math/calculations -> "react"
 2. If user asks to search web/research -> "research"
-3. If user asks about GitHub/code -> "react"
-4. If user asks about documents/files -> "rag"
-5. If user asks for complex planning -> "plan_execute"
-6. If just chatting -> "conversational"
-7. If task is complete -> "FINISH"
+3. If user asks to create documentation -> "documentation"
+4. If user asks about GitHub/code -> "react"
+5. If user asks about documents/files -> "rag"
+6. If user asks for complex planning -> "plan_execute"
+7. If just chatting -> "conversational"
+8. If task is complete -> "FINISH"
 
 Respond with ONLY the agent name or "FINISH".
 
 User Request: {input}`;
 
-export async function supervisor(state: typeof AgentAnnotation.State): Promise<Partial<typeof AgentAnnotation.State>> {
+export async function supervisor(state: typeof AgentAnnotation.State, config: RunnableConfig): Promise<Partial<typeof AgentAnnotation.State>> {
   // Persist supervisor routing decision in checkpointSaver and memory
   const checkpointSaver = await checkpointSaverPromise;
   logger.info("Supervisor routing request", {
@@ -58,10 +61,11 @@ export async function supervisor(state: typeof AgentAnnotation.State): Promise<P
 
   const lastMessage = state.messages[state.messages.length - 1];
   const userContent = lastMessage?.content as string || state.userInput || "Hello";
+  const prompt = config.configurable?.supervisor_prompt ?? supervisorPrompt;
   try {
     const response = await model.invoke([{
       role: "user",
-      content: supervisorPrompt.replace("{input}", userContent)
+      content: prompt.replace("{input}", userContent)
     }]);
     const responseText = response.content as string;
     const agentChoice = responseText.trim().toLowerCase();
@@ -113,11 +117,13 @@ export async function supervisor(state: typeof AgentAnnotation.State): Promise<P
     if (input.includes("math") || input.includes("calculate") || input.includes("compute")) {
       return { next: "react" };
     } else if (input.includes("search") || input.includes("research") || input.includes("find")) {
-      return { next: "research" };
+      return { next: "research_collect" };
     } else if (input.includes("github") || input.includes("code") || input.includes("repository")) {
       return { next: "react" };
     } else if (input.includes("document") || input.includes("file") || input.includes("pdf")) {
       return { next: "rag" };
+    } else if (input.includes("documentation") || input.includes("docs")) {
+      return { next: "documentation" };
     } else if (input.includes("plan") || input.includes("steps") || input.includes("strategy")) {
       return { next: "plan_execute" };
     }
