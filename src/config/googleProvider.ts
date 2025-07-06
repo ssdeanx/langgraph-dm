@@ -20,7 +20,7 @@ const GOOGLE_API_KEY = getEnvVar("GOOGLE_API_KEY");
 /* This code snippet is exporting an instance of the `ChatGoogleGenerativeAI` class with specific
 configuration options. Here's a breakdown of what each option is doing: */
 export const model = new ChatGoogleGenerativeAI({
-  model: "gemini-2.5-pro",
+  model: "gemini-2.5-flash",
   temperature: 0,
   maxRetries: 2,
   maxOutputTokens: 64000,

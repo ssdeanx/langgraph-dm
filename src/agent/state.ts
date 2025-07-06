@@ -15,6 +15,10 @@ export interface AgentState {
   summary?: string;
   report?: string;
   documentation?: string;
+  retrieved_documents?: string[];
+  critique_result?: string;
+  rewritten_query?: string;
+  final_answer?: string;
 }
 
 /* This code snippet is defining an `AgentAnnotation` object using the `Annotation.Root` method. The
@@ -58,6 +62,22 @@ export const AgentAnnotation = Annotation.Root({
     default: () => "",
   }),
   documentation: Annotation<string>({
+    reducer: (x, y) => y ?? x,
+    default: () => "",
+  }),
+  retrieved_documents: Annotation<string[]>({
+    reducer: (x, y) => (x ?? []).concat(y ?? []),
+    default: () => [],
+  }),
+  critique_result: Annotation<string>({
+    reducer: (x, y) => y ?? x,
+    default: () => "",
+  }),
+  rewritten_query: Annotation<string>({
+    reducer: (x, y) => y ?? x,
+    default: () => "",
+  }),
+  final_answer: Annotation<string>({
     reducer: (x, y) => y ?? x,
     default: () => "",
   }),

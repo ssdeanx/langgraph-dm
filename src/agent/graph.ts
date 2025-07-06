@@ -8,19 +8,20 @@ import logger from "../config/logger.js";
 import { ModelInvocationError, handleGlobalError } from "../config/errors.js";
 import { researchCollectNode, researchSummarizeNode, researchReportNode } from "./research_agent.js"; // Import research agent for potential routing
 import { draftDocumentationNode, finalizeDocumentationNode } from "./documentation_agent.js"; // Import documentation agent
-// Import react agent for potential routing
 import { reactAgent } from "./react_agent.js"; // Import react agent for potential routing
+import { cragAgentWorkflow } from "./crag_agent.js"; // Import CRAG agent
 
 const ConfigSchema = Annotation.Root({
   supervisor_prompt: Annotation<string>,
   research_prompt: Annotation<string>,
   documentation_prompt: Annotation<string>,
   model_name: Annotation<string>,
+  crag_prompt: Annotation<string>, // Added for CRAG agent
 });
 
 // Helper function to handle model invocation with error handling
 async function safeModelInvoke(content: string, config: RunnableConfig): Promise<string> {
-  const modelToUse = config.configurable?.model_name ?? "gemini-2.5-pro";
+  const modelToUse = config.configurable?.model_name ?? "gemini-2.5-flash";
   try {
     const response = await model.invoke([{ role: "user", content }]);
     return response.content as string;
@@ -128,6 +129,10 @@ function routeMessages(state: typeof AgentAnnotation.State): string {
     // If supervisor decision is to route to documentation agent
     return "documentation";
   }
+  if (state.next === "crag") {
+    // If supervisor decision is to route to CRAG agent
+    return "crag_workflow";
+  }
   // For now, all agent types route to chat node
   return "chat";
 }
@@ -146,6 +151,13 @@ const workflow = new StateGraph(AgentAnnotation, ConfigSchema)
   // Add documentation agent nodes
   .addNode("draft_documentation", draftDocumentationNode)
   .addNode("finalize_documentation", finalizeDocumentationNode)
+  // Wrapper node for CRAG agent
+  .addNode("crag_workflow", async (state: typeof AgentAnnotation.State) => {
+    logger.info("Entering CRAG workflow node.");
+    const result = await cragAgentWorkflow.invoke(state);
+    logger.info("Exiting CRAG workflow node.");
+    return result;
+  })
   // Add chat node for general conversation
   .addNode("chat", chatNode)
   .addEdge(START, "entry")
@@ -157,6 +169,7 @@ const workflow = new StateGraph(AgentAnnotation, ConfigSchema)
     research_summarize: "research_summarize",
     research_report: "research_report",
     documentation: "draft_documentation",
+    crag: "crag_workflow", // Added for CRAG agent
     [END]: END,
   })
   .addEdge("chat", END)
@@ -165,7 +178,8 @@ const workflow = new StateGraph(AgentAnnotation, ConfigSchema)
   .addEdge("research_summarize", "research_report")
   .addEdge("research_report", "supervisor")
   .addEdge("draft_documentation", "finalize_documentation")
-  .addEdge("finalize_documentation", "supervisor");
+  .addEdge("finalize_documentation", "supervisor")
+  .addEdge("crag_workflow", "supervisor"); // Edge from CRAG back to supervisor
 
 // Compile the graph
 export const graph = workflow.compile({

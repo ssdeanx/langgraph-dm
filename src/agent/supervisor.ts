@@ -36,6 +36,7 @@ Available agents and their capabilities:
 - conversational: General chat and conversation
 - plan_execute: Complex multi-step task planning and execution
 - collaboration: Multi-agent coordination tasks
+- crag: Corrective RAG for detailed research and comprehensive answers, involving iterative search and critique.
 
 Rules:
 1. If user asks about math/calculations -> "react"
@@ -44,8 +45,9 @@ Rules:
 4. If user asks about GitHub/code -> "react"
 5. If user asks about documents/files -> "rag"
 6. If user asks for complex planning -> "plan_execute"
-7. If just chatting -> "conversational"
-8. If task is complete -> "FINISH"
+7. If the user asks a complex question requiring detailed research, web search, and potentially iterative refinement or critique to find a comprehensive answer -> "crag"
+8. If just chatting -> "conversational"
+9. If task is complete -> "FINISH"
 
 Respond with ONLY the agent name or "FINISH".
 
@@ -126,6 +128,8 @@ export async function supervisor(state: typeof AgentAnnotation.State, config: Ru
       return { next: "documentation" };
     } else if (input.includes("plan") || input.includes("steps") || input.includes("strategy")) {
       return { next: "plan_execute" };
+    } else if (input.includes("detailed research") || input.includes("comprehensive answer") || input.includes("critique")) {
+      return { next: "crag" };
     }
     // Default to conversational for general chat
     return { next: "conversational" };
