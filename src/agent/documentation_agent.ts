@@ -1,34 +1,49 @@
 import { AIMessage } from "@langchain/core/messages";
 import { model } from "../config/googleProvider.js";
-import { AgentAnnotation } from "./state.js";
+import { DocumentationAnnotation } from "./documentation_state.js"; // Import DocumentationAnnotation
 import logger from "../config/logger.js";
 import { ToolExecutionError } from "../config/errors.js";
-import { RunnableConfig } from "@langchain/core/runnables";
+import { LangGraphRunnableConfig } from "@langchain/langgraph";
 
-export async function draftDocumentationNode(state: typeof AgentAnnotation.State, config: RunnableConfig): Promise<Partial<typeof AgentAnnotation.State>> {
-  logger.info("Drafting documentation from report", { query: state.query });
+/**
+ * Node to draft documentation based on research data or summary.
+ * @param state The current agent state.
+ * @param config The runnable config.
+ * @returns A partial agent state with the drafted documentation.
+ */
+export async function draftDocumentationNode(state: typeof DocumentationAnnotation.State, config: LangGraphRunnableConfig): Promise<Partial<typeof DocumentationAnnotation.State>> {
+  logger.info("Drafting documentation", { query: state.query });
+  config.writer?.(new AIMessage("Drafting documentation...")); // Custom streaming update
 
   try {
-    const prompt = config.configurable?.documentation_prompt ?? `Based on the following report, draft technical documentation.
+    const contentToDocument = state.query; // Assuming query contains the initial content for documentation
+    if (!contentToDocument) {
+      throw new Error("No content available to draft documentation.");
+    }
 
-Report:
-${state.report}
+    const prompt = config.configurable?.documentation_prompt ?? `
+      You are an expert technical writer. Draft comprehensive documentation based on the following content.
+      Adhere to a clear, concise, and accurate style. Use markdown for formatting, including headings,
+      bullet points, and code blocks where appropriate.
 
-Draft the documentation in a clear, concise, and structured format. Use markdown for formatting.`;
+      Content to document:
+      ${contentToDocument}
+    `;
+
     const response = await model.invoke([{
       role: "user",
       content: prompt
     }]);
 
-    const documentation = response.content as string;
+    const drafted_documentation = response.content as string;
+    config.writer?.(new AIMessage("Documentation draft complete.")); // Custom streaming update
 
     return {
-      documentation,
-      messages: [new AIMessage(`Drafted documentation for: ${state.query}`)],
-      next: "finalize_documentation"
+      drafted_documentation,
+      messages: [new AIMessage(`Drafted documentation for: ${state.query}`)]
     };
   } catch (error) {
-    logger.error("Documentation draft error", { error: error instanceof Error ? error.message : 'Unknown error' });
+    logger.error("Documentation drafting error", { error: error instanceof Error ? error.message : 'Unknown error' });
     throw new ToolExecutionError(
       `Failed to draft documentation: ${error instanceof Error ? error.message : 'Unknown error'}`,
       "draft_documentation",
@@ -37,27 +52,44 @@ Draft the documentation in a clear, concise, and structured format. Use markdown
   }
 }
 
-export async function finalizeDocumentationNode(state: typeof AgentAnnotation.State, config: RunnableConfig): Promise<Partial<typeof AgentAnnotation.State>> {
+/**
+ * Node to finalize documentation.
+ * @param state The current agent state.
+ * @param config The runnable config.
+ * @returns A partial agent state with the finalized documentation.
+ */
+export async function finalizeDocumentationNode(state: typeof DocumentationAnnotation.State, config: LangGraphRunnableConfig): Promise<Partial<typeof DocumentationAnnotation.State>> {
   logger.info("Finalizing documentation", { query: state.query });
+  config.writer?.(new AIMessage("Finalizing documentation...")); // Custom streaming update
 
   try {
-    const prompt = config.configurable?.documentation_prompt ?? `Review and finalize the following documentation draft. Ensure it is accurate, complete, and easy to understand.
+    const drafted_documentation = state.drafted_documentation;
+    if (!drafted_documentation) {
+      throw new Error("No drafted documentation to finalize.");
+    }
 
-Draft:
-${state.documentation}
+    const prompt = config.configurable?.documentation_prompt ?? `
+      Review and finalize the following drafted documentation. Ensure accuracy, clarity, and adherence
+      to technical writing best practices. Make any necessary improvements, corrections, or additions.
+      The output should be the complete and final documentation.
 
-Finalize the documentation, making any necessary corrections or improvements.`;
+      Drafted documentation:
+      ${drafted_documentation}
+    `;
+
     const response = await model.invoke([{
       role: "user",
       content: prompt
     }]);
 
-    const documentation = response.content as string;
+    const final_documentation = response.content as string;
+    config.writer?.(new AIMessage("Documentation finalized.")); // Custom streaming update
 
+    // For Human-in-the-Loop, we will signal to the supervisor that human review is needed.
+    // The actual interruption mechanism will be handled by the graph/supervisor.
     return {
-      documentation,
-      messages: [new AIMessage(`Finalized documentation for: ${state.query}`)],
-      next: "supervisor"
+      final_documentation,
+      messages: [new AIMessage(`Finalized documentation:\n\n${final_documentation}`)]
     };
   } catch (error) {
     logger.error("Documentation finalization error", { error: error instanceof Error ? error.message : 'Unknown error' });

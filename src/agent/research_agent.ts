@@ -1,9 +1,9 @@
 import { AIMessage } from "@langchain/core/messages";
 import { model } from "../config/googleProvider.js";
-import { AgentAnnotation } from "./state.js";
+import { ResearchAnnotation } from "./research_state.js"; // Import ResearchAnnotation
 import { tools } from "../tools/index.js";
 import { memory } from "../memory/index.js";
-import { RunnableConfig } from "@langchain/core/runnables";
+import { LangGraphRunnableConfig } from "@langchain/langgraph";
 import { createCheckpointSaver } from "../memory/storage.js";
 import logger from "../config/logger.js";
 import { ToolExecutionError, AgentError } from "../config/errors.js";
@@ -23,13 +23,20 @@ const checkpointSaverPromise = createCheckpointSaver();
  * `ResearchAnnotation.State`. The partial state object contains specific properties based on the
  * processing done in each function:
  */
-export async function researchCollectNode(state: typeof AgentAnnotation.State): Promise<Partial<typeof AgentAnnotation.State>> {
+export async function researchCollectNode(state: typeof ResearchAnnotation.State, config: LangGraphRunnableConfig): Promise<Partial<typeof ResearchAnnotation.State>> {
   logger.info("Research collect node processing", { query: state.query });
+  config.writer?.(new AIMessage("Collecting research data...")); // Custom streaming update
 
-  try {
-    // Use Tavily and Exa tools from registry
-    const tavilyResults = tools.tavilyTool ? await tools.tavilyTool.invoke({ query: state.query }) : "";
-    const exaResults = tools.exaSearchTool ? await tools.exaSearchTool.invoke({ query: state.query }) : "";
+  const MAX_RETRIES = 3;
+  let retries = 0;
+
+  while (retries < MAX_RETRIES) {
+    try {
+      // Use Tavily and Exa tools from registry
+      const tavilyResults = tools.tavilyTool ? await tools.tavilyTool.invoke({ query: state.query }) : "";
+      config.writer?.(new AIMessage("Tavily search complete.")); // Custom streaming update
+      const exaResults = tools.exaSearchTool ? await tools.exaSearchTool.invoke({ query: state.query }) : "";
+      config.writer?.(new AIMessage("Exa search complete.")); // Custom streaming update
 
     // Example: Use web scraping or document processing if needed
     // const webData = await tools.extractTextFromUrlTool.invoke({ url: someUrl });
@@ -78,21 +85,29 @@ export async function researchCollectNode(state: typeof AgentAnnotation.State): 
 
     return {
       research_data: researchData,
-      messages: [new AIMessage(`Collected research data for: ${state.query}`)],
-      next: "summarize"
+      messages: [new AIMessage(`Collected research data for: ${state.query}`)]
     };
-  } catch (error) {
-    logger.error("Research collect error", { error: error instanceof Error ? error.message : 'Unknown error' });
-    throw new ToolExecutionError(
-      `Failed to collect research data: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      "research_collect",
-      error instanceof Error ? error : undefined
-    );
+    } catch (error) {
+      retries++;
+      logger.error(`Research collect error (Attempt ${retries}/${MAX_RETRIES}):`, { error: error instanceof Error ? error.message : 'Unknown error' });
+      if (retries < MAX_RETRIES) {
+        config.writer?.(new AIMessage(`Retrying research collection... (Attempt ${retries + 1}/${MAX_RETRIES})`));
+        await new Promise(resolve => setTimeout(resolve, 1000 * retries)); // Exponential backoff
+      } else {
+        throw new ToolExecutionError(
+          `Failed to collect research data after ${MAX_RETRIES} attempts: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          "research_collect",
+          error instanceof Error ? error : undefined
+        );
+      }
+    }
   }
+  throw new Error("Unexpected error: researchCollectNode should have returned or thrown an error by now.");
 }
 
-export async function researchSummarizeNode(state: typeof AgentAnnotation.State, config: RunnableConfig): Promise<Partial<typeof AgentAnnotation.State>> {
+export async function researchSummarizeNode(state: typeof ResearchAnnotation.State, config: LangGraphRunnableConfig): Promise<Partial<typeof ResearchAnnotation.State>> {
   logger.info("Research summarize node processing", { dataCount: state.research_data.length });
+  config.writer?.(new AIMessage("Summarizing research data...")); // Custom streaming update
 
   try {
     const combinedData = state.research_data.join("\n\n");
@@ -104,11 +119,11 @@ export async function researchSummarizeNode(state: typeof AgentAnnotation.State,
     }]);
 
     const summary = response.content as string;
+    config.writer?.(new AIMessage("Research summary complete.")); // Custom streaming update
 
     return {
       summary,
-      messages: [new AIMessage(`Research summary completed for: ${state.query}`)],
-      next: "report"
+      messages: [new AIMessage(`Research summary completed for: ${state.query}`)]
     };
   } catch (error) {
     logger.error("Research summarize error", { error: error instanceof Error ? error.message : 'Unknown error' });
@@ -120,8 +135,9 @@ export async function researchSummarizeNode(state: typeof AgentAnnotation.State,
   }
 }
 
-export async function researchReportNode(state: typeof AgentAnnotation.State, config: RunnableConfig): Promise<Partial<typeof AgentAnnotation.State>> {
+export async function researchReportNode(state: typeof ResearchAnnotation.State, config: LangGraphRunnableConfig): Promise<Partial<typeof ResearchAnnotation.State>> {
   logger.info("Research report node processing", { query: state.query });
+  config.writer?.(new AIMessage("Generating research report...")); // Custom streaming update
 
   try {
     const prompt = config.configurable?.research_prompt ?? `Create a comprehensive research report based on the following summary for query: "${state.query}"\n\nSummary:\n${state.summary}\n\nFormat as a structured report with sections.`;
@@ -131,11 +147,11 @@ export async function researchReportNode(state: typeof AgentAnnotation.State, co
     }]);
 
     const report = response.content as string;
+    config.writer?.(new AIMessage("Research report complete.")); // Custom streaming update
 
     return {
       report,
-      messages: [new AIMessage(`Research report completed:\n\n${report}`)],
-      next: "supervisor"
+      messages: [new AIMessage(`Research report completed:\n\n${report}`)]
     };
   } catch (error) {
     logger.error("Research report error", { error: error instanceof Error ? error.message : 'Unknown error' });

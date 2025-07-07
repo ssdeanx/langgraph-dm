@@ -8,6 +8,64 @@
 
 ---
 
+## [0.3.0] - 2025-07-07
+
+### [Added]
+
+- **Document Processing Tools:**
+  - `convertJsonToCsvTool`: Converts JSON (array of objects) to CSV.
+  - `parseYamlTool`: Parses YAML content from string or file to JSON.
+  - `convertHtmlToMarkdownTool`: Converts HTML content to clean Markdown.
+- **Calculator Tools:** All calculator tools (`evaluateExpressionTool`, `addNumbersTool`, `subtractNumbersTool`, `multiplyNumbersTool`, `divideNumbersTool`, `powerTool`, `sqrtTool`, `sinTool`, `cosTool`, `tanTool`, `logTool`, `absTool`, `roundTool`, `floorTool`, `ceilTool`) integrated into the `react` agent.
+- **Data Agent State:** Added `data_summary` and `data_output` fields to `AgentState` for dedicated data agent results.
+
+### [Changed]
+
+- **`document_processing.ts`:**
+  - Refactored `validateFilePath` and `ensureDirectoryExists` for improved security and cross-platform compatibility using Node.js `path` module.
+  - `convertTextToMarkdownTool`: Clarified description; no longer uses `marked` for conversion but saves pre-formatted Markdown.
+  - `convertTextToCsvTool` removed, replaced by `convertJsonToCsvTool`.
+  - `convertMarkdownToHtmlTool` removed, replaced by `convertHtmlToMarkdownTool`.
+- **`local_git.ts`:**
+  - Converted all filesystem operations to use promise-based `fsPromises`.
+  - `listInMemoryFilesTool`: Refined recursive listing logic and schema.
+  - `diffInMemoryFilesTool`: Replaced with a robust implementation using `diff` library for standard patch output.
+- **`github.ts`:**
+  - `getOctokitClient`: Hardened with explicit token validation and `ToolExecutionError` handling.
+  - `getFileTreeTool`: Optimized to efficiently retrieve file trees by directly using branch name and commit SHA.
+  - All GitHub tools: `owner` parameter now optional, defaulting to `ssdeanx`.
+- **`web_scraping.ts`:**
+  - `extractHtmlFromUrlTool`: Standardized error handling to use `logger` and `ToolExecutionError`.
+  - `crawlWebsiteTool`: Removed `maxDepth` parameter (relying on `maxRequests` for crawl limits) and improved error logging in `failedRequestHandler`.
+- **`data_agent.ts`:**
+  - Changed `dataAgentTools` array typing to `any[]` for compatibility with `DynamicStructuredTool`.
+  - `dataAgentNode`: Now stores results in `data_output` and `data_summary` state fields.
+  - Implemented Zod schema validation for tool arguments before invocation, ensuring runtime type safety.
+- **`supervisor.ts`:**
+  - Prompt updated to accurately describe `data` agent capabilities, including HTML-to-Markdown conversion and web crawling.
+  - Default GitHub owner (`ssdeanx`) mentioned in the prompt's rules.
+- **`react_agent.ts`:**
+  - Removed problematic `../tools/index.js` import.
+  - Explicitly imports and consolidates all relevant tools (calculator, document processing, local git, github, web scraping) into `reactAgentTools`.
+- **`graph.ts`:**
+  - `routeMessages` function fixed to correctly map `data` agent type to `data_agent` node.
+  - Conditional edges from supervisor now correctly map agent types to specific node names.
+
+### [Fixed]
+
+- Resolved all persistent TypeScript errors related to tool schema incompatibility across `data_agent.ts`, `local_git.ts`, and `react_agent.ts`.
+- Fixed a syntax error in `graph.ts` (`routeMessages` function duplicate code).
+- Corrected logging parameter in `github.ts` `getFileTreeTool`.
+
+### [AI/Agent]
+
+- **Data Agent:** Significantly enhanced with new tools for diverse data processing, web content handling, and comprehensive Git/GitHub operations, all with robust runtime validation.
+- **React Agent:** Now a more versatile general-purpose agent with access to a wide array of tools, including full calculator functionality.
+- **Supervisor:** Improved routing intelligence due to updated prompt reflecting granular agent capabilities, ensuring more accurate task delegation.
+- **Overall System Robustness:** Enhanced state management and inter-agent communication, making the entire multi-agent system more stable and reliable.
+
+---
+
 ## [0.2.0] - 2025-07-06
 
 ### [Fixed]
@@ -55,5 +113,5 @@
 
 ---
 
-**Tip:**  
+**Tip:**
 For each future release, add sections for: `[Added]`, `[Changed]`, `[Fixed]`, `[Deprecated]`, `[Removed]`, `[Security]`, and `[AI/Agent]` (for new agentic capabilities or memory/state changes).

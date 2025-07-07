@@ -146,7 +146,7 @@ async function critiqueRetrievalNode(state: typeof AgentAnnotation.State, config
     const documents = state.retrieved_documents?.join("\n\n") || "No documents retrieved.";
 
     const critiquePrompt = `Given the original query: "${query}" and the following retrieved documents:\n\n${documents}\n\nCritique the documents for relevance and accuracy. State if the documents are sufficient to answer the query, or if further refinement (e.g., query rewriting, more search) is needed. Provide a clear reason.`;
-    
+
     const critiqueResponse = await safeModelInvoke([new HumanMessage({ content: critiquePrompt })], config);
     const critiqueResult: string = messageContentToString(critiqueResponse.content);
 
@@ -182,7 +182,7 @@ async function rewriteQueryNode(state: typeof AgentAnnotation.State, config: Run
     const critique: string = state.critique_result || "No specific critique provided.";
 
     const rewritePrompt = `Given the original query: "${originalQuery}" and the critique: "${critique}", please rewrite the query to improve search results. Provide only the new query.`;
-    
+
     const rewrittenQueryResponse = await safeModelInvoke([new HumanMessage({ content: rewritePrompt })], config);
     const rewrittenQuery: string = messageContentToString(rewrittenQueryResponse.content);
 
@@ -211,7 +211,7 @@ async function generateAnswerNode(state: typeof AgentAnnotation.State, config: R
     const documents = state.retrieved_documents?.join("\n\n") || "No documents available.";
 
     const answerPrompt = `Given the query: "${query}" and the following documents:\n\n${documents}\n\nProvide a comprehensive answer.`;
-    
+
     const answerResponse = await safeModelInvoke([new HumanMessage({ content: answerPrompt })], config);
     const finalAnswer: string = messageContentToString(answerResponse.content);
 

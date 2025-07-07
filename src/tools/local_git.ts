@@ -5,10 +5,13 @@ import http from "isomorphic-git/http/node/index.js";
 import { createFsFromVolume, Volume } from "memfs";
 import logger from "../config/logger.js";
 import { ToolExecutionError } from "../config/errors.js";
+import * as diff from "diff";
+import * as path from "path";
+import { Dirent } from "fs";
 
 const vol = new Volume();
-const fs = createFsFromVolume(vol); // Keep 'fs' for synchronous operations like readFileSync
-const fsPromises = fs.promises; // Access the promise-based API
+// Use the promise-based API for all async operations
+const fsPromises = createFsFromVolume(vol).promises;
 
 const dir = "/";
 
@@ -29,7 +32,7 @@ export const cloneRepositoryTool = tool(
   async ({ repoUrl, branch }) => {
     try {
       await git.clone({
-        fs,
+        fs: fsPromises,
         http,
         dir,
         url: repoUrl,
@@ -68,8 +71,7 @@ export const cloneRepositoryTool = tool(
 export const readInMemoryFileTool = tool(
   async ({ filePath }) => {
     try {
-      // memfs readFileSync returns a Buffer, so convert to string
-      const content = fs.readFileSync(filePath, "utf-8");
+      const content = await fsPromises.readFile(filePath, "utf-8");
       return content as string;
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -103,13 +105,24 @@ export const readInMemoryFileTool = tool(
  * @returns {Promise<string>} A JSON string of file and directory names.
  */
 export const listInMemoryFilesTool = tool(
-  async ({ path }) => {
+  async ({ directoryPath, recursive = false }) => {
     try {
-      const files = await fsPromises.readdir(path) as string[];
-      return JSON.stringify(files);
+      const allFiles: string[] = [];
+      const entries = await fsPromises.readdir(directoryPath, { withFileTypes: true }) as Dirent[];
+
+      for (const entry of entries) {
+        const fullPath = path.join(directoryPath, entry.name);
+        if (entry.isDirectory() && recursive) {
+          const subFiles = JSON.parse(await listInMemoryFilesTool.invoke({ directoryPath: fullPath, recursive: true }));
+          allFiles.push(...subFiles.map((sf: string) => path.join(entry.name, sf)));
+        } else {
+          allFiles.push(entry.name);
+        }
+      }
+      return JSON.stringify(allFiles);
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      logger.error("Error listing in-memory files", { path, error: errorMessage });
+      logger.error("Error listing in-memory files", { directoryPath, error: errorMessage });
       throw new ToolExecutionError(
         `Failed to list in-memory files: ${errorMessage}`,
         "list_in_memory_files",
@@ -119,12 +132,10 @@ export const listInMemoryFilesTool = tool(
   },
   {
     name: "list_in_memory_files",
-    description:
-      "Lists files and directories within the in-memory cloned repository.",
+    description: "Lists files and directories within a given path in the in-memory cloned repository, optionally recursively.",
     schema: z.object({
-      path: z
-        .string()
-        .describe("The path to the directory to list (e.g., '/')."),
+      directoryPath: z.string().describe("The path to the directory to list (e.g., '/src')."),
+      recursive: z.boolean().optional().describe("Whether to list files recursively. Defaults to false."),
     }),
   }
 );
@@ -179,7 +190,7 @@ export const commitInMemoryChangesTool = tool(
   async ({ message }) => {
     try {
       const sha = await git.commit({
-        fs,
+        fs: fsPromises,
         dir,
         message,
         author: {
@@ -218,7 +229,7 @@ export const getInMemoryLogTool = tool(
   async ({ depth = 10 }) => {
     try {
       const log = await git.log({
-        fs,
+        fs: fsPromises,
         dir,
         depth,
       });
@@ -258,7 +269,7 @@ export const checkoutInMemoryBranchTool = tool(
   async ({ branchName }) => {
     try {
       await git.checkout({
-        fs,
+        fs: fsPromises,
         dir,
         ref: branchName,
       });
@@ -294,7 +305,7 @@ export const createInMemoryBranchTool = tool(
   async ({ branchName }) => {
     try {
       await git.branch({
-        fs,
+        fs: fsPromises,
         dir,
         ref: branchName,
       });
@@ -327,35 +338,23 @@ export const createInMemoryBranchTool = tool(
  * @returns {Promise<string>} The diff between the two files or an error message.
  */
 export const diffInMemoryFilesTool = tool(
-  async ({ filePath1, filePath2 }) => {
+  async ({ filepath, ref1 = "HEAD", ref2 }) => {
     try {
-      const content1 = fs.readFileSync(filePath1, "utf-8").toString();
-      const content2 = fs.readFileSync(filePath2, "utf-8").toString();
-
-      // A simple diff implementation (can be replaced with a more robust diffing library)
-      const diff = `--- a/${filePath1}\n+++ b/${filePath2}\n`;
-      const lines1 = content1.split('\n');
-      const lines2 = content2.split('\n');
-
-      let diffContent = "";
-      for (let i = 0; i < Math.max(lines1.length, lines2.length); i++) {
-        const line1 = lines1[i] || "";
-        const line2 = lines2[i] || "";
-
-        if (line1 !== line2) {
-          if (line1 !== "") diffContent += `- ${line1}\n`;
-          if (line2 !== "") diffContent += `+ ${line2}\n`;
-        } else {
-          diffContent += `  ${line1}\n`;
-        }
-      }
-
-      return diff + diffContent;
+      const fromContentBuffer = ref2
+        ? (await git.readBlob({ fs: fsPromises, dir, oid: ref2, filepath })).blob
+        : await fsPromises.readFile(path.join(dir, filepath));
+      const toContentBuffer = (await git.readBlob({ fs: fsPromises, dir, oid: ref1, filepath })).blob;
+      const patch = diff.createPatch(
+        filepath,
+        Buffer.from(fromContentBuffer).toString('utf-8'),
+        Buffer.from(toContentBuffer).toString('utf-8')
+      );
+      return patch;
     } catch (error: unknown) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      logger.error("Error diffing in-memory files", { filePath1, filePath2, error: errorMessage });
+      logger.error("Error diffing in-memory file", { filepath, ref1, ref2, error: errorMessage });
       throw new ToolExecutionError(
-        `Failed to diff in-memory files: ${errorMessage}`,
+        `Failed to diff in-memory file: ${errorMessage}`,
         "diff_in_memory_files",
         error instanceof Error ? error : undefined
       );
@@ -363,11 +362,11 @@ export const diffInMemoryFilesTool = tool(
   },
   {
     name: "diff_in_memory_files",
-    description:
-      "Compares two files in the in-memory file system and returns the diff.",
+    description: "Compares a file against a previous version in the in-memory git history and returns a standard patch.",
     schema: z.object({
-      filePath1: z.string().describe("The path to the first file."),
-      filePath2: z.string().describe("The path to the second file."),
+      filepath: z.string().describe("The path to the file within the repository (e.g., 'src/index.js')."),
+      ref1: z.string().optional().describe("The first git ref (e.g., commit SHA, branch name) to compare. Defaults to HEAD."),
+      ref2: z.string().optional().describe("The second git ref to compare. If not provided, compares against the current working directory version."),
     }),
   }
 );

@@ -24,7 +24,7 @@ const checkpointSaverPromise = createCheckpointSaver();
  * - "FINISH" if the task is complete.
  * - A fallback agent choice based on keywords if the user request does
  */
-const ALL_AGENT_TYPES: AgentType[] = ["react", "rag", "conversational", "research", "rewoo", "plan_execute", "self_rag", "crag", "collaboration", "research_team", "document_writing_team", "reflection", "documentation"];
+const ALL_AGENT_TYPES: AgentType[] = ["react", "rag", "conversational", "research", "documentation", "data"];
 
 const supervisorPrompt = `You are a supervisor who needs to decide which agent to call next based on the user's request.
 
@@ -34,20 +34,21 @@ Available agents and their capabilities:
 - research: Deep research using web search and document analysis
 - documentation: Create documentation from research reports
 - conversational: General chat and conversation
-- plan_execute: Complex multi-step task planning and execution
-- collaboration: Multi-agent coordination tasks
-- crag: Corrective RAG for detailed research and comprehensive answers, involving iterative search and critique.
+- data: A powerful agent for data-centric tasks. Use for:
+    - **Processing Data**: Can parse, read, and convert various data formats like JSON, CSV, XML, and YAML, whether from user input, files, or web content.
+    - **Document Handling**: Can extract text from DOCX files and convert HTML to clean Markdown.
+    - **Web Content**: Can extract text or raw HTML from URLs and perform web crawls.
+    - **Code & Repositories**: Can perform a full suite of Git and GitHub operations, including cloning, reading files, diffing, and managing issues.
 
 Rules:
-1. If user asks about math/calculations -> "react"
-2. If user asks to search web/research -> "research"
-3. If user asks to create documentation -> "documentation"
-4. If user asks about GitHub/code -> "react"
-5. If user asks about documents/files -> "rag"
-6. If user asks for complex planning -> "plan_execute"
-7. If the user asks a complex question requiring detailed research, web search, and potentially iterative refinement or critique to find a comprehensive answer -> "crag"
-8. If just chatting -> "conversational"
-9. If task is complete -> "FINISH"
+1. If the request involves handling files, structured data (JSON, CSV, etc.), or converting between formats (like HTML to MD) -> "data"
+2. If the user asks to perform any Git or GitHub operation (clone, list repos, create issue, diff, etc.) -> "data"
+3. For general web research or finding information -> "research"
+4. To create documentation from a report -> "documentation"
+5. For math or simple calculations -> "react"
+6. For retrieval-augmented generation (RAG) over a known document set -> "rag"
+7. If the user is just chatting or asking a general question -> "conversational"
+8. If the task is clearly finished -> "FINISH"
 
 Respond with ONLY the agent name or "FINISH".
 
@@ -119,19 +120,16 @@ export async function supervisor(state: typeof AgentAnnotation.State, config: Ru
     if (input.includes("math") || input.includes("calculate") || input.includes("compute")) {
       return { next: "react" };
     } else if (input.includes("search") || input.includes("research") || input.includes("find")) {
-      return { next: "research_collect" };
-    } else if (input.includes("github") || input.includes("code") || input.includes("repository")) {
-      return { next: "react" };
-    } else if (input.includes("document") || input.includes("file") || input.includes("pdf")) {
-      return { next: "rag" };
+      return { next: "research" };
+    } else if (input.includes("github") || input.includes("repository") || input.includes("repo") || input.includes("clone") || input.includes("commit") || input.includes("branch") || input.includes("diff") || input.includes("issue") || input.includes("pull request") || input.includes("file tree") || input.includes("file content") || input.includes("in-memory") || input.includes("document") || input.includes("csv") || input.includes("xml") || input.includes("docx") || input.includes("parse")) {
+      // Direct to data agent for specific data/repo/document operations
+      return { next: "data" };
     } else if (input.includes("documentation") || input.includes("docs")) {
       return { next: "documentation" };
-    } else if (input.includes("plan") || input.includes("steps") || input.includes("strategy")) {
-      return { next: "plan_execute" };
-    } else if (input.includes("detailed research") || input.includes("comprehensive answer") || input.includes("critique")) {
-      return { next: "crag" };
+    } else if (input.includes("rag")) { // Explicit RAG requests
+      return { next: "rag" };
     }
-    // Default to conversational for general chat
+    // Default to conversational for general chat or unhandled cases
     return { next: "conversational" };
   } catch (error) {
     logger.error("Supervisor error", { error: error instanceof Error ? error.message : 'Unknown error' });

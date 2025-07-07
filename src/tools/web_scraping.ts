@@ -58,15 +58,23 @@ export const extractTextFromUrlTool = tool(
  */
 export const extractHtmlFromUrlTool = tool(
   async ({ url }) => {
+    logger.info("Extracting HTML from URL", { url });
     try {
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      return await response.text();
+      const html = await response.text();
+      logger.info("HTML extracted successfully", { url, htmlLength: html.length });
+      return html;
     } catch (error: unknown) {
-      console.error("Error extracting HTML from URL:", error);
-      return `Error extracting HTML from URL: ${error instanceof Error ? error.message : String(error)}`;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error extracting HTML from URL", { url, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to extract HTML from URL: ${errorMessage}`,
+        "extract_html_from_url",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -127,8 +135,8 @@ export const extractElementsBySelectorTool = tool(
  * @returns {Promise<string>} A JSON string containing the crawled URLs and their extracted text content.
  */
 export const crawlWebsiteTool = tool(
-  async ({ startUrl, maxRequests = 10, maxDepth = 1 }) => {
-    logger.info("Starting website crawl", { startUrl, maxRequests, maxDepth });
+  async ({ startUrl, maxRequests = 20 }) => {
+    logger.info("Starting website crawl", { startUrl, maxRequests });
     const crawledData: { url: string; text: string }[] = [];
     const requestQueue = await RequestQueue.open();
     await requestQueue.addRequest({ url: startUrl });
@@ -136,20 +144,15 @@ export const crawlWebsiteTool = tool(
     const crawler = new CheerioCrawler({
       requestQueue,
       maxRequestsPerCrawl: maxRequests,
-      maxRequestsPerMinute: 60, // Limit to 60 requests per minute to be polite
-      maxConcurrency: 5, // Limit concurrent requests
+      maxRequestsPerMinute: 60,
+      maxConcurrency: 5,
       async requestHandler({ request, $ }) {
-        // Enforce maxDepth manually
-        const requestWithDepth = request as { depth?: number };
-        if (requestWithDepth.depth !== undefined && requestWithDepth.depth > maxDepth) {
-          return;
-        }
-        console.log(`Processing ${request.url}...`);
+        logger.debug(`Processing ${request.url}...`);
         const text = $("body").text();
         crawledData.push({ url: request.url, text });
       },
-      async failedRequestHandler({ request }) {
-        console.error(`Request ${request.url} failed.`);
+      async failedRequestHandler({ request }, error) {
+        logger.warn(`Request ${request.url} failed.`, { url: request.url, error: error.message });
       },
     });
 
@@ -169,11 +172,10 @@ export const crawlWebsiteTool = tool(
   },
   {
     name: "crawl_website",
-    description: "Performs a web crawl starting from a given URL and collects text content from pages.",
+    description: "Performs a web crawl starting from a given URL and collects text content from a limited number of pages.",
     schema: z.object({
       startUrl: z.string().url().describe("The starting URL for the crawl."),
-      maxRequests: z.number().int().min(1).optional().describe("Maximum number of pages to crawl. Defaults to 10."),
-      maxDepth: z.number().int().min(0).optional().describe("Maximum depth of the crawl. Defaults to 1."),
+      maxRequests: z.number().int().min(1).optional().describe("Maximum number of pages to crawl. Defaults to 20."),
     }),
   }
 );

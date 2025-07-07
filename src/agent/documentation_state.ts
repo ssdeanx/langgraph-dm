@@ -2,33 +2,28 @@ import { Annotation } from "@langchain/langgraph";
 import { BaseMessage } from "@langchain/core/messages";
 
 /**
- * Defines the state for the research subgraph.
+ * Defines the state for the documentation subgraph.
  */
-export interface ResearchState {
+export interface DocumentationState {
   query: string;
-  research_data: string[];
-  summary: string;
-  report: string;
+  drafted_documentation: string;
+  final_documentation: string;
   messages: BaseMessage[]; // Keep messages within the subgraph state for local context
 }
 
 /**
- * Annotation for the ResearchState, defining how its fields are managed.
+ * Annotation for the DocumentationState, defining how its fields are managed.
  */
-export const ResearchAnnotation = Annotation.Root({
+export const DocumentationAnnotation = Annotation.Root({
   query: Annotation<string>({
     reducer: (x, y) => y ?? x,
     default: () => "",
   }),
-  research_data: Annotation<string[]>({
-    reducer: (x, y) => (x ?? []).concat(y ?? []),
-    default: () => [],
-  }),
-  summary: Annotation<string>({
+  drafted_documentation: Annotation<string>({
     reducer: (x, y) => y ?? x,
     default: () => "",
   }),
-  report: Annotation<string>({
+  final_documentation: Annotation<string>({
     reducer: (x, y) => y ?? x,
     default: () => "",
   }),

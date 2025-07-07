@@ -6,25 +6,37 @@ import { BaseMessage } from "@langchain/core/messages";
 interface specifies the structure of an object that must have the following properties: */
 export interface AgentState {
   messages: BaseMessage[];
+  query?: string;
   next?: string;
   sender?: string;
   sessionId?: string;
   userInput?: string;
-  query?: string;
+  final_answer?: string;
+
+  // Research Agent specific state
   research_data?: string[];
   summary?: string;
   report?: string;
-  documentation?: string;
+
+  // RAG Agent specific state
   retrieved_documents?: string[];
-  critique_result?: string;
-  rewritten_query?: string;
-  final_answer?: string;
+  generated_answer?: string;
+
+  // Documentation Agent specific state
+  drafted_documentation?: string;
+  final_documentation?: string;
+
+  // Data Agent specific state
+  data_summary?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data_output?: any;
 }
 
-/* This code snippet is defining an `AgentAnnotation` object using the `Annotation.Root` method. The
-`AgentAnnotation` object contains properties such as `messages`, `next`, `sender`, `sessionId`, and
-`userInput`, each with its own configuration defined using the `Annotation` method. */
 export const AgentAnnotation = Annotation.Root({
+  query: Annotation<string>({
+    reducer: (x, y) => y ?? x,
+    default: () => "",
+  }),
   messages: Annotation<BaseMessage[]>({
     reducer: (x, y) => x.concat(y),
     default: () => [],
@@ -45,10 +57,11 @@ export const AgentAnnotation = Annotation.Root({
     reducer: (x, y) => y ?? x,
     default: () => "",
   }),
-  query: Annotation<string>({
+  final_answer: Annotation<string>({
     reducer: (x, y) => y ?? x,
     default: () => "",
   }),
+  // Research Agent specific annotations
   research_data: Annotation<string[]>({
     reducer: (x, y) => (x ?? []).concat(y ?? []),
     default: () => [],
@@ -61,25 +74,32 @@ export const AgentAnnotation = Annotation.Root({
     reducer: (x, y) => y ?? x,
     default: () => "",
   }),
-  documentation: Annotation<string>({
-    reducer: (x, y) => y ?? x,
-    default: () => "",
-  }),
+  // RAG Agent specific annotations
   retrieved_documents: Annotation<string[]>({
     reducer: (x, y) => (x ?? []).concat(y ?? []),
     default: () => [],
   }),
-  critique_result: Annotation<string>({
+  generated_answer: Annotation<string>({
     reducer: (x, y) => y ?? x,
     default: () => "",
   }),
-  rewritten_query: Annotation<string>({
+  // Documentation Agent specific annotations
+  drafted_documentation: Annotation<string>({
     reducer: (x, y) => y ?? x,
     default: () => "",
   }),
-  final_answer: Annotation<string>({
+  final_documentation: Annotation<string>({
     reducer: (x, y) => y ?? x,
     default: () => "",
+  }),
+  // Data Agent specific annotations
+  data_summary: Annotation<string>({
+    reducer: (x, y) => y ?? x,
+    default: () => "",
+  }),
+  data_output: Annotation<any>({
+    reducer: (x, y) => y ?? x,
+    default: () => null,
   }),
 });
 
@@ -89,12 +109,5 @@ export type AgentType =
   | "rag"
   | "conversational"
   | "research"
-  | "rewoo"
-  | "plan_execute"
-  | "self_rag"
-  | "crag"
-  | "collaboration"
-  | "research_team"
-  | "document_writing_team"
-  | "reflection"
-  | "documentation";
+  | "documentation"
+  | "data";
