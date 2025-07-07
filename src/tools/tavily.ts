@@ -68,9 +68,10 @@ export const tavilyTool = tool(
         context: input.context,
       });
       return JSON.stringify(results);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error("Error performing Tavily search:", error);
-      return `Error performing Tavily search: ${error.message}`;
+      return `Error performing Tavily search: ${errorMessage}`;
     }
   },
   {

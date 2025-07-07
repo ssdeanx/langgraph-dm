@@ -1,6 +1,9 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { Octokit } from "octokit";
+import logger from "../config/logger.js";
+import { ToolExecutionError } from "../config/errors.js";
+
 
 /**
  * Initializes Octokit with a GitHub Personal Access Token (PAT).
@@ -8,13 +11,23 @@ import { Octokit } from "octokit";
  * @returns {Octokit} An authenticated Octokit instance.
  */
 function getOctokitClient(): Octokit {
-  const githubPat = process.env.GITHUB_PAT;
-  if (!githubPat) {
-    throw new Error("GITHUB_PAT environment variable is not set.");
+  try {
+    const githubToken = process.env.GITHUB_TOKEN;
+    if (!githubToken || githubToken.trim() === "") {
+      throw new Error("GITHUB_TOKEN environment variable is not set or is empty.");
+    }
+    return new Octokit({
+      auth: githubToken,
+    });
+  } catch (error) {
+    logger.error("Failed to initialize Octokit client", { error: error instanceof Error ? error.message : "Unknown error" });
+    // Re-throw as a ToolExecutionError for consistent error handling
+    throw new ToolExecutionError(
+      `Octokit client initialization failed: ${error instanceof Error ? error.message : "Unknown error"}`,
+      "octokit_initialization",
+      error instanceof Error ? error : undefined
+    );
   }
-  return new Octokit({
-    auth: githubPat,
-  });
 }
 
 /**
@@ -31,7 +44,7 @@ function getOctokitClient(): Octokit {
  * @returns {Promise<string>} A JSON string of repository names and their descriptions.
  */
 export const listRepositoriesTool = tool(
-  async ({ type, username }) => {
+  async ({ type, username = "ssdeanx" }) => {
     const octokit = getOctokitClient();
     try {
       let repos;
@@ -51,17 +64,22 @@ export const listRepositoriesTool = tool(
       return JSON.stringify(
         repos.map((repo) => ({ name: repo.name, description: repo.description, url: repo.html_url }))
       );
-    } catch (error: any) {
-      console.error("Error listing repositories:", error);
-      return `Error listing repositories: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error listing repositories", { error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to list repositories: ${errorMessage}`,
+        "list_github_repositories",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
     name: "list_repositories",
-    description: "Lists repositories for a given user or organization.",
+    description: "Lists repositories for a given user or organization. Defaults to the 'ssdeanx' user.",
     schema: z.object({
       type: z.enum(["user", "org"]).describe("The type of account ('user' or 'org')."),
-      username: z.string().describe("The username or organization name."),
+      username: z.string().optional().describe("The username or organization name. Defaults to 'ssdeanx'."),
     }),
   }
 );
@@ -77,7 +95,7 @@ export const listRepositoriesTool = tool(
  * @returns {Promise<string>} The content of the file as a string.
  */
 export const getFileContentTool = tool(
-  async ({ owner, repo, path, ref }) => {
+  async ({ owner = "ssdeanx", repo, path, ref }) => {
     const octokit = getOctokitClient();
     try {
       const { data } = await octokit.rest.repos.getContent({
@@ -96,16 +114,21 @@ export const getFileContentTool = tool(
       } else {
         return "File content not found.";
       }
-    } catch (error: any) {
-      console.error("Error getting file content:", error);
-      return `Error getting file content: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error getting file content", { owner, repo, path, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to get file content: ${errorMessage}`,
+        "get_github_file_content",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
     name: "get_file_content",
-    description: "Retrieves the content of a specific file from a GitHub repository.",
+    description: "Retrieves the content of a specific file from a GitHub repository. Defaults to the 'ssdeanx' owner.",
     schema: z.object({
-      owner: z.string().describe("The owner of the repository."),
+      owner: z.string().optional().describe("The owner of the repository. Defaults to 'ssdeanx'."),
       repo: z.string().describe("The name of the repository."),
       path: z.string().describe("The path to the file within the repository."),
       ref: z.string().optional().describe("The name of the commit/branch/tag. Default: the repository’s default branch."),
@@ -124,7 +147,7 @@ export const getFileContentTool = tool(
  * @returns {Promise<string>} A success message with the issue URL or an error message.
  */
 export const createIssueTool = tool(
-  async ({ owner, repo, title, body }) => {
+  async ({ owner = "ssdeanx", repo, title, body, labels, assignees }) => {
     const octokit = getOctokitClient();
     try {
       const { data } = await octokit.rest.issues.create({
@@ -132,21 +155,30 @@ export const createIssueTool = tool(
         repo,
         title,
         body,
+        labels: labels,
+        assignees: assignees
       });
       return `Issue created successfully: ${data.html_url}`;
-    } catch (error: any) {
-      console.error("Error creating issue:", error);
-      return `Error creating issue: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error creating issue", { owner, repo, title, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to create issue: ${errorMessage}`,
+        "create_github_issue",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
     name: "create_github_issue",
-    description: "Creates a new issue in a GitHub repository.",
+    description: "Creates a new issue in a GitHub repository, optionally with labels and assignees. Defaults to the 'ssdeanx' owner.",
     schema: z.object({
-      owner: z.string().describe("The owner of the repository."),
+      owner: z.string().optional().describe("The owner of the repository. Defaults to 'ssdeanx'."),
       repo: z.string().describe("The name of the repository."),
       title: z.string().describe("The title of the issue."),
       body: z.string().optional().describe("The body content of the issue."),
+      labels: z.array(z.string()).optional().describe("An array of labels to add to the issue."),
+      assignees: z.array(z.string()).optional().describe("An array of GitHub usernames to assign to the issue."),
     }),
   }
 );
@@ -170,9 +202,14 @@ export const createRepositoryTool = tool(
         private: isPrivate,
       });
       return `Repository created successfully: ${data.html_url}`;
-    } catch (error: any) {
-      console.error("Error creating repository:", error);
-      return `Error creating repository: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error creating repository", { name, description, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to create repository: ${errorMessage}`,
+        "create_github_repository",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -195,7 +232,7 @@ export const createRepositoryTool = tool(
  * @returns {Promise<string>} A success message or an error message.
  */
 export const deleteRepositoryTool = tool(
-  async ({ owner, repo }) => {
+  async ({ owner = "ssdeanx", repo }) => {
     const octokit = getOctokitClient();
     try {
       await octokit.rest.repos.delete({
@@ -203,16 +240,21 @@ export const deleteRepositoryTool = tool(
         repo,
       });
       return `Repository ${owner}/${repo} deleted successfully.`;
-    } catch (error: any) {
-      console.error("Error deleting repository:", error);
-      return `Error deleting repository: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error deleting repository", { owner, repo, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to delete repository: ${errorMessage}`,
+        "delete_github_repository",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
     name: "delete_repository",
-    description: "Deletes a repository. Use with extreme caution!",
+    description: "Deletes a repository. Use with extreme caution! Defaults to the 'ssdeanx' owner.",
     schema: z.object({
-      owner: z.string().describe("The owner of the repository."),
+      owner: z.string().optional().describe("The owner of the repository. Defaults to 'ssdeanx'."),
       repo: z.string().describe("The name of the repository."),
     }),
   }
@@ -231,7 +273,7 @@ export const deleteRepositoryTool = tool(
  * @returns {Promise<string>} A success message with the PR URL or an error message.
  */
 export const createPullRequestTool = tool(
-  async ({ owner, repo, title, head, base, body }) => {
+  async ({ owner = "ssdeanx", repo, title, head, base, body }) => {
     const octokit = getOctokitClient();
     try {
       const { data } = await octokit.rest.pulls.create({
@@ -243,16 +285,21 @@ export const createPullRequestTool = tool(
         body,
       });
       return `Pull request created successfully: ${data.html_url}`;
-    } catch (error: any) {
-      console.error("Error creating pull request:", error);
-      return `Error creating pull request: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error creating pull request", { owner, repo, title, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to create pull request: ${errorMessage}`,
+        "create_pull_request",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
     name: "create_pull_request",
-    description: "Creates a new pull request.",
+    description: "Creates a new pull request. Defaults to the 'ssdeanx' owner.",
     schema: z.object({
-      owner: z.string().describe("The owner of the repository."),
+      owner: z.string().optional().describe("The owner of the repository. Defaults to 'ssdeanx'."),
       repo: z.string().describe("The name of the repository."),
       title: z.string().describe("The title of the pull request."),
       head: z.string().describe("The name of the branch where your changes are implemented."),
@@ -272,7 +319,7 @@ export const createPullRequestTool = tool(
  * @returns {Promise<string>} A success message or an error message.
  */
 export const mergePullRequestTool = tool(
-  async ({ owner, repo, pull_number }) => {
+  async ({ owner = "ssdeanx", repo, pull_number }) => {
     const octokit = getOctokitClient();
     try {
       const { data } = await octokit.rest.pulls.merge({
@@ -281,16 +328,21 @@ export const mergePullRequestTool = tool(
         pull_number,
       });
       return `Pull request ${pull_number} merged successfully: ${data.sha}`;
-    } catch (error: any) {
-      console.error("Error merging pull request:", error);
-      return `Error merging pull request: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error merging pull request", { owner, repo, pull_number, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to merge pull request: ${errorMessage}`,
+        "merge_pull_request",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
     name: "merge_pull_request",
-    description: "Merges a pull request.",
+    description: "Merges a pull request. Defaults to the 'ssdeanx' owner.",
     schema: z.object({
-      owner: z.string().describe("The owner of the repository."),
+      owner: z.string().optional().describe("The owner of the repository. Defaults to 'ssdeanx'."),
       repo: z.string().describe("The name of the repository."),
       pull_number: z.number().int().describe("The number of the pull request to merge."),
     }),
@@ -307,7 +359,7 @@ export const mergePullRequestTool = tool(
  * @returns {Promise<string>} A JSON string of pull request details.
  */
 export const listPullRequestsTool = tool(
-  async ({ owner, repo, state = 'open' }) => {
+  async ({ owner = "ssdeanx", repo, state = 'open' }) => {
     const octokit = getOctokitClient();
     try {
       const { data } = await octokit.rest.pulls.list({
@@ -325,16 +377,21 @@ export const listPullRequestsTool = tool(
           base: pr.base.ref,
         }))
       );
-    } catch (error: any) {
-      console.error("Error listing pull requests:", error);
-      return `Error listing pull requests: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error listing pull requests", { owner, repo, state, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to list pull requests: ${errorMessage}`,
+        "list_pull_requests",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
     name: "list_pull_requests",
-    description: "Lists pull requests for a repository.",
+    description: "Lists pull requests for a repository. Defaults to the 'ssdeanx' owner.",
     schema: z.object({
-      owner: z.string().describe("The owner of the repository."),
+      owner: z.string().optional().describe("The owner of the repository. Defaults to 'ssdeanx'."),
       repo: z.string().describe("The name of the repository."),
       state: z.enum(['open', 'closed', 'all']).optional().describe("The state of the pull requests ('open', 'closed', 'all')."),
     }),
@@ -352,7 +409,7 @@ export const listPullRequestsTool = tool(
  * @returns {Promise<string>} A success message with the comment URL or an error message.
  */
 export const addIssueCommentTool = tool(
-  async ({ owner, repo, issue_number, body }) => {
+  async ({ owner = "ssdeanx", repo, issue_number, body }) => {
     const octokit = getOctokitClient();
     try {
       const { data } = await octokit.rest.issues.createComment({
@@ -362,16 +419,21 @@ export const addIssueCommentTool = tool(
         body,
       });
       return `Comment added to issue ${issue_number}: ${data.html_url}`;
-    } catch (error: any) {
-      console.error("Error adding issue comment:", error);
-      return `Error adding issue comment: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error adding issue comment", { owner, repo, issue_number, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to add issue comment: ${errorMessage}`,
+        "add_issue_comment",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
     name: "add_issue_comment",
-    description: "Adds a comment to an issue.",
+    description: "Adds a comment to an issue. Defaults to the 'ssdeanx' owner.",
     schema: z.object({
-      owner: z.string().describe("The owner of the repository."),
+      owner: z.string().optional().describe("The owner of the repository. Defaults to 'ssdeanx'."),
       repo: z.string().describe("The name of the repository."),
       issue_number: z.number().int().describe("The number of the issue."),
       body: z.string().describe("The body of the comment."),
@@ -389,7 +451,7 @@ export const addIssueCommentTool = tool(
  * @returns {Promise<string>} A JSON string of issue details.
  */
 export const listIssuesTool = tool(
-  async ({ owner, repo, state = 'open' }) => {
+  async ({ owner = "ssdeanx", repo, state = 'open' }) => {
     const octokit = getOctokitClient();
     try {
       const { data } = await octokit.rest.issues.listForRepo({
@@ -405,16 +467,21 @@ export const listIssuesTool = tool(
           url: issue.html_url,
         }))
       );
-    } catch (error: any) {
-      console.error("Error listing issues:", error);
-      return `Error listing issues: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error listing issues", { owner, repo, state, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to list issues: ${errorMessage}`,
+        "list_issues",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
     name: "list_issues",
-    description: "Lists issues for a repository.",
+    description: "Lists issues for a repository. Defaults to the 'ssdeanx' owner.",
     schema: z.object({
-      owner: z.string().describe("The owner of the repository."),
+      owner: z.string().optional().describe("The owner of the repository. Defaults to 'ssdeanx'."),
       repo: z.string().describe("The name of the repository."),
       state: z.enum(['open', 'closed', 'all']).optional().describe("The state of the issues ('open', 'closed', 'all')."),
     }),
@@ -434,7 +501,7 @@ export const listIssuesTool = tool(
  * @returns {Promise<string>} A success message with the issue URL or an error message.
  */
 export const updateIssueTool = tool(
-  async ({ owner, repo, issue_number, title, body, state }) => {
+  async ({ owner = "ssdeanx", repo, issue_number, title, body, state }) => {
     const octokit = getOctokitClient();
     try {
       const { data } = await octokit.rest.issues.update({
@@ -446,16 +513,21 @@ export const updateIssueTool = tool(
         state,
       });
       return `Issue ${issue_number} updated successfully: ${data.html_url}`;
-    } catch (error: any) {
-      console.error("Error updating issue:", error);
-      return `Error updating issue: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error updating issue", { owner, repo, issue_number, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to update issue: ${errorMessage}`,
+        "update_issue",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
     name: "update_issue",
-    description: "Updates an existing issue.",
+    description: "Updates an existing issue. Defaults to the 'ssdeanx' owner.",
     schema: z.object({
-      owner: z.string().describe("The owner of the repository."),
+      owner: z.string().optional().describe("The owner of the repository. Defaults to 'ssdeanx'."),
       repo: z.string().describe("The name of the repository."),
       issue_number: z.number().int().describe("The number of the issue to update."),
       title: z.string().optional().describe("The new title of the issue."),
@@ -475,7 +547,7 @@ export const updateIssueTool = tool(
  * @returns {Promise<string>} A JSON string of commit details.
  */
 export const listCommitsTool = tool(
-  async ({ owner, repo, sha }) => {
+  async ({ owner = "ssdeanx", repo, sha }) => {
     const octokit = getOctokitClient();
     try {
       const { data } = await octokit.rest.repos.listCommits({
@@ -491,16 +563,21 @@ export const listCommitsTool = tool(
           date: commit.commit.author?.date,
         }))
       );
-    } catch (error: any) {
-      console.error("Error listing commits:", error);
-      return `Error listing commits: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error listing commits", { owner, repo, sha, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to list commits: ${errorMessage}`,
+        "list_commits",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
     name: "list_commits",
-    description: "Lists commits for a repository or branch.",
+    description: "Lists commits for a repository or branch. Defaults to the 'ssdeanx' owner.",
     schema: z.object({
-      owner: z.string().describe("The owner of the repository."),
+      owner: z.string().optional().describe("The owner of the repository. Defaults to 'ssdeanx'."),
       repo: z.string().describe("The name of the repository."),
       sha: z.string().optional().describe("SHA or name of the branch to list commits from."),
     }),
@@ -518,13 +595,24 @@ export const listCommitsTool = tool(
  * @returns {Promise<string>} A JSON string of the file tree.
  */
 export const getFileTreeTool = tool(
-  async ({ owner, repo, tree_sha, recursive = false }) => {
+  async ({ owner = "ssdeanx", repo, branch, recursive = false }) => {
     const octokit = getOctokitClient();
     try {
+      // If no branch is specified, get the default branch name first.
+      const branchName = branch || (await octokit.rest.repos.get({ owner, repo })).data.default_branch;
+      
+      // Then get the commit SHA for the head of that branch.
+      const { data: branchData } = await octokit.rest.repos.getBranch({
+        owner,
+        repo,
+        branch: branchName,
+      });
+      const tree_sha = branchData.commit.sha;
+
       const { data } = await octokit.rest.git.getTree({
         owner,
         repo,
-        tree_sha: tree_sha || (await octokit.rest.repos.get({ owner, repo })).data.default_branch,
+        tree_sha,
         recursive: recursive ? "true" : "false",
       });
       return JSON.stringify(
@@ -534,19 +622,24 @@ export const getFileTreeTool = tool(
           size: item.size,
         }))
       );
-    } catch (error: any) {
-      console.error("Error getting file tree:", error);
-      return `Error getting file tree: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error getting file tree", { owner, repo, branch, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to get file tree: ${errorMessage}`,
+        "get_file_tree",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
     name: "get_file_tree",
-    description: "Gets the file tree of a repository.",
+    description: "Gets the file tree for a specific branch in a repository. Defaults to the 'ssdeanx' owner.",
     schema: z.object({
-      owner: z.string().describe("The owner of the repository."),
+      owner: z.string().optional().describe("The owner of the repository. Defaults to 'ssdeanx'."),
       repo: z.string().describe("The name of the repository."),
-      tree_sha: z.string().optional().describe("The SHA of the tree to get. Default: the repository’s default branch tree."),
-      recursive: z.boolean().optional().describe("Whether to return a recursive tree."),
+      branch: z.string().optional().describe("The name of the branch. If not provided, the repository's default branch is used."),
+      recursive: z.boolean().optional().describe("Whether to return a recursive tree. Defaults to false."),
     }),
   }
 );

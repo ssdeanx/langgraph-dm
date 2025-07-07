@@ -1,6 +1,20 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { ExaSearchResults } from "@langchain/exa";
+import { Exa } from "exa-js";
+import "dotenv/config";
+import { ToolExecutionError } from "../config/errors.js";
+
+/**
+ * Utility function for environment variable access
+ */
+function getEnvVar(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`${name} environment variable is not set.`);
+  }
+  return value;
+}
 
 /**
  * @module ExaTools
@@ -16,15 +30,21 @@ import { ExaSearchResults } from "@langchain/exa";
  */
 export const exaSearchTool = tool(
   async ({ query }) => {
-    const exa = new ExaSearchResults({
-      apiKey: process.env.EXA_API_KEY,
-    });
     try {
+      const apiKey = getEnvVar("EXA_API_KEY");
+      const exaClient = new Exa(apiKey);
+      const exa = new ExaSearchResults({ client: exaClient });
+      
       const results = await exa.invoke(query);
       return JSON.stringify(results);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       console.error("Error performing Exa search:", error);
-      return `Error performing Exa search: ${error.message}`;
+      throw new ToolExecutionError(
+        `Failed to perform Exa search: ${errorMessage}`,
+        "exa_search",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -35,3 +55,4 @@ export const exaSearchTool = tool(
     }),
   }
 );
+

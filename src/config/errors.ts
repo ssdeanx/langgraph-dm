@@ -22,7 +22,7 @@ export class ModelInvocationError extends AgentError {
 }
 
 // Global error handler (conceptual - actual implementation depends on execution environment)
-export function handleGlobalError(error: unknown) {
+export function handleGlobalError(error: unknown): void {
   if (error instanceof AgentError) {
     logger.error(`Custom Agent Error [${error.code}]: ${error.message}`, { stack: error.stack, details: error });
   } else if (error instanceof Error) {

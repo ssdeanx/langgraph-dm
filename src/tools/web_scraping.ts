@@ -2,7 +2,9 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import * as cheerio from "cheerio";
 import { CheerioCrawler, RequestQueue } from "crawlee";
-
+import "dotenv/config";
+import logger from "../config/logger.js";
+import { ToolExecutionError } from "../config/errors.js";
 /**
  * @module WebScrapingTools
  * @description A collection of tools for web scraping and content extraction.
@@ -17,6 +19,7 @@ import { CheerioCrawler, RequestQueue } from "crawlee";
  */
 export const extractTextFromUrlTool = tool(
   async ({ url }) => {
+    logger.info("Extracting text from URL", { url });
     try {
       const response = await fetch(url);
       if (!response.ok) {
@@ -24,10 +27,17 @@ export const extractTextFromUrlTool = tool(
       }
       const html = await response.text();
       const $ = cheerio.load(html);
-      return $("body").text();
-    } catch (error: any) {
-      console.error("Error extracting text from URL:", error);
-      return `Error extracting text from URL: ${error.message}`;
+      const text = $("body").text();
+      logger.info("Text extracted successfully", { url, textLength: text.length });
+      return text;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error extracting text from URL", { url, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to extract text from URL: ${errorMessage}`,
+        "extract_text_from_url",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -48,15 +58,23 @@ export const extractTextFromUrlTool = tool(
  */
 export const extractHtmlFromUrlTool = tool(
   async ({ url }) => {
+    logger.info("Extracting HTML from URL", { url });
     try {
       const response = await fetch(url);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      return await response.text();
-    } catch (error: any) {
-      console.error("Error extracting HTML from URL:", error);
-      return `Error extracting HTML from URL: ${error.message}`;
+      const html = await response.text();
+      logger.info("HTML extracted successfully", { url, htmlLength: html.length });
+      return html;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error extracting HTML from URL", { url, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to extract HTML from URL: ${errorMessage}`,
+        "extract_html_from_url",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -78,16 +96,23 @@ export const extractHtmlFromUrlTool = tool(
  */
 export const extractElementsBySelectorTool = tool(
   async ({ html, selector }) => {
+    logger.info("Extracting elements by selector", { selector, htmlLength: html.length });
     try {
       const $ = cheerio.load(html);
       const elements: string[] = [];
       $(selector).each((_i, elem) => {
         elements.push($(elem).text());
       });
+      logger.info("Elements extracted successfully", { selector, elementCount: elements.length });
       return elements;
-    } catch (error: any) {
-      console.error("Error extracting elements by selector:", error);
-      return `Error extracting elements by selector: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error extracting elements by selector", { selector, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to extract elements by selector: ${errorMessage}`,
+        "extract_elements_by_selector",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
@@ -110,7 +135,8 @@ export const extractElementsBySelectorTool = tool(
  * @returns {Promise<string>} A JSON string containing the crawled URLs and their extracted text content.
  */
 export const crawlWebsiteTool = tool(
-  async ({ startUrl, maxRequests = 10, maxDepth = 1 }) => {
+  async ({ startUrl, maxRequests = 20 }) => {
+    logger.info("Starting website crawl", { startUrl, maxRequests });
     const crawledData: { url: string; text: string }[] = [];
     const requestQueue = await RequestQueue.open();
     await requestQueue.addRequest({ url: startUrl });
@@ -118,37 +144,38 @@ export const crawlWebsiteTool = tool(
     const crawler = new CheerioCrawler({
       requestQueue,
       maxRequestsPerCrawl: maxRequests,
-      maxRequestsPerMinute: 60, // Limit to 60 requests per minute to be polite
-      maxConcurrency: 5, // Limit concurrent requests
+      maxRequestsPerMinute: 60,
+      maxConcurrency: 5,
       async requestHandler({ request, $ }) {
-        // Enforce maxDepth manually
-        if ((request as any).depth !== undefined && (request as any).depth > maxDepth) {
-          return;
-        }
-        console.log(`Processing ${request.url}...`);
+        logger.debug(`Processing ${request.url}...`);
         const text = $("body").text();
         crawledData.push({ url: request.url, text });
       },
-      async failedRequestHandler({ request }) {
-        console.error(`Request ${request.url} failed.`);
+      async failedRequestHandler({ request }, error) {
+        logger.warn(`Request ${request.url} failed.`, { url: request.url, error: error.message });
       },
     });
 
     try {
       await crawler.run();
+      logger.info("Web crawl completed", { startUrl, pagesFound: crawledData.length });
       return JSON.stringify(crawledData);
-    } catch (error: any) {
-      console.error("Error during web crawl:", error);
-      return `Error during web crawl: ${error.message}`;
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      logger.error("Error during web crawl", { startUrl, error: errorMessage });
+      throw new ToolExecutionError(
+        `Failed to crawl web pages: ${errorMessage}`,
+        "crawl_web",
+        error instanceof Error ? error : undefined
+      );
     }
   },
   {
     name: "crawl_website",
-    description: "Performs a web crawl starting from a given URL and collects text content from pages.",
+    description: "Performs a web crawl starting from a given URL and collects text content from a limited number of pages.",
     schema: z.object({
       startUrl: z.string().url().describe("The starting URL for the crawl."),
-      maxRequests: z.number().int().min(1).optional().describe("Maximum number of pages to crawl. Defaults to 10."),
-      maxDepth: z.number().int().min(0).optional().describe("Maximum depth of the crawl. Defaults to 1."),
+      maxRequests: z.number().int().min(1).optional().describe("Maximum number of pages to crawl. Defaults to 20."),
     }),
   }
 );
